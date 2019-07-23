@@ -53,4 +53,4 @@ class Predict(Resource):
         print("this is get method!")
 api.add_resource(Predict,'/algorithm/predict')
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

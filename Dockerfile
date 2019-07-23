@@ -1,4 +1,4 @@
-FROM python:3.6-alpine
+FROM python:3.6
 WORKDIR /app
 COPY main.py .
 COPY web.py .
