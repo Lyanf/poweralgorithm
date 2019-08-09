@@ -2,9 +2,11 @@ import os
 import pandas as pd
 from tqdm import tqdm
 import sqlalchemy
+import pymysql
 
 class Tool:
-    sharedroot = os.getenv("SHARED_ROOT")
+    SHARED_ROOT = os.getenv("SHARED_ROOT")
+    SQL_HOST = "localhost"
     __mapping = {}
     __mappingInit = False
 
@@ -59,14 +61,29 @@ class Tool:
     def getMeasurePointMapping(cls):
         cls.__initMapping()
         return cls.__mapping
+    @classmethod
+    def getSQLEngine(cls):
+        db = sqlalchemy.create_engine("mysql+pymysql://root:dclab@%s/powersystem"%(cls.SQL_HOST))
+        return db
+    @classmethod
+    def excuteSQL(cls,sql):
+        db = pymysql.connect(host=cls.SQL_HOST, user="root", password="dclab", db="powersystem")
+        # 使用 cursor() 方法创建一个游标对象 cursor
+        cursor = db.cursor()
+        # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
+        cursor.execute(sql)
+        db.commit()
+
+        cursor.close()
+        db.close()
     # 指定一个测点，获取这个公司所有的设备，并且放进去，第一行放设备名称，然后返回第几列是选中的那个设备
     @staticmethod
     def getP_total(factory, line, device, measurePoint):
-        dataDir = os.path.join(Tool.sharedroot, "data", factory)
+        dataDir = os.path.join(Tool.SHARED_ROOT, "data", factory)
         P_total = Tool.readData(dataDir, (measurePoint))
-        if not os.path.exists(os.path.join(Tool.sharedroot, "data", "tmp")):
-            os.mkdir(os.path.join(Tool.sharedroot, "data", "tmp"))
-        P_total.to_csv(os.path.join(Tool.sharedroot, 'data', 'tmp', 'P_total.csv'))
+        if not os.path.exists(os.path.join(Tool.SHARED_ROOT, "data", "tmp")):
+            os.mkdir(os.path.join(Tool.SHARED_ROOT, "data", "tmp"))
+        P_total.to_csv(os.path.join(Tool.SHARED_ROOT, 'data', 'tmp', 'P_total.csv'))
         P_total.index = pd.to_datetime(P_total.index)
         # 补全device名并得到device_index
         for i in range(P_total.shape[1]):
@@ -99,9 +116,9 @@ class Tool:
 
     @staticmethod
     def getP_totalBySQL(factory, line, device, measurePoint):
-        db = sqlalchemy.create_engine("mysql+pymysql://root:dclab@localhost/powersystem")
+        SQLEngine = Tool.getSQLEngine()
         deviceList = []
-        for i in pd.read_sql("select distinct device from datas where factory='%s'" % (factory), db).values:
+        for i in pd.read_sql("select distinct device from datas where factory='%s'" % (factory), SQLEngine).values:
             deviceList.append(i[0])
         deviceList.remove(device)
         tableNames = "abcdefghijklmnopqrstuvwxyz"
@@ -129,7 +146,7 @@ class Tool:
                       % (measurePoint, fieldName, factory, deviceName, tableName, tableName)
 
         allSQL = baseSQL1 + selectFiled + baseSQL2 + joinSQL
-        originDataFrame = pd.read_sql(allSQL, db)
+        originDataFrame = pd.read_sql(allSQL, SQLEngine)
         indexedDataFrame = originDataFrame.set_index("timestamp")
         indexedDataFrame.index = pd.to_datetime(indexedDataFrame.index)
         # 指定了时间

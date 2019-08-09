@@ -15,22 +15,16 @@ def predictFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
     resultFileName = parameterHash[0:15]
 
-    # 先把结果的地址存到数据库里面，结果再慢慢后面算，目的是为了让同样的请求只能启动一个计算任务
-    db = pymysql.connect(host="localhost", user="root", password="dclab", db="powersystem")
-    # 使用 cursor() 方法创建一个游标对象 cursor
-    cursor = db.cursor()
-    # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
-    print(parameterHash, resultFileName)
-    cursor.execute('''insert into powersystem.algorithmresult values("%s","%s",null)''' % (parameterHash, resultFileName))
-    db.commit()
+    insertSQL = '''insert into powersystem.algorithmresult values("%s","%s",null)''' % (parameterHash, resultFileName)
+    Tool.excuteSQL(insertSQL)
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
     corr_device = correlation(P_total, device_index, 3)
     a, b = train_forecast(P_total, corr_device, device_index)
     lastResult = {'y_true':a,'y_pred':b}
     jsonStr = json.dumps(lastResult)
-    cursor.execute("update powersystem.algorithmresult set json='%s' where hash='%s'"%(jsonStr,parameterHash))
-    db.commit()
+    updateSQL = "update powersystem.algorithmresult set json='%s' where hash='%s'"%(jsonStr,parameterHash)
+    Tool.excuteSQL(updateSQL)
 
     # dirPath = os.path.join(Tool.sharedroot,"predict")
     # if not os.path.exists(dirPath):
@@ -54,10 +48,6 @@ def correlationFunc(factory, line, device, measurePoint):
         resultDict[i] = j
 
     resultJson = json.dumps(resultDict,ensure_ascii=False)
-    db = pymysql.connect(host="localhost", user="root", password="dclab", db="powersystem")
-    # 使用 cursor() 方法创建一个游标对象 cursor
-    cursor = db.cursor()
-    # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
+
     sql = '''insert into powersystem.correlation values('%s','%s')''' % (parameterHash, resultJson)
-    cursor.execute(sql)
-    db.commit()
+    Tool.excuteSQL(sql)
