@@ -47,7 +47,7 @@ def correlation(P_total, i, N, timelag=50):
     # plt.title('corr device with correlation coefficient')
     return device_pearsonLag[:N]
 
-
+# 返回的是两个list，分别为真实值和预测值
 def train_forecast(P_total, corr_device, device_index):
     day_point = 480  # 一天为480个数据点
     P_forecast = P_total.iloc[:, device_index]
@@ -116,7 +116,7 @@ def train_forecast(P_total, corr_device, device_index):
     # with open("predict.json","w") as f:
     #     json.dump({'y_true':a.tolist(),'y_pred':b.tolist()},f)
     # f.write("\n".join([a.tolist(),b.tolist()]))
-    return a, b
+    return a.tolist(), b.tolist()
 
 
 def cluster(data):

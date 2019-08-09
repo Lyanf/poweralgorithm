@@ -16,22 +16,27 @@ def predictFunc(factory, line, device, measurePoint):
     resultFileName = parameterHash[0:15]
 
     # 先把结果的地址存到数据库里面，结果再慢慢后面算，目的是为了让同样的请求只能启动一个计算任务
-    db = pymysql.connect(host="139.199.36.137", user="root", password="dclab", db="powersystem")
+    db = pymysql.connect(host="localhost", user="root", password="dclab", db="powersystem")
     # 使用 cursor() 方法创建一个游标对象 cursor
     cursor = db.cursor()
     # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
     print(parameterHash, resultFileName)
-    cursor.execute('''insert into powersystem.algorithmresult values("%s","%s")''' % (parameterHash, resultFileName))
+    cursor.execute('''insert into powersystem.algorithmresult values("%s","%s",null)''' % (parameterHash, resultFileName))
     db.commit()
 
-    P_total, device_index = Tool.getP_total(factory, line, device, measurePoint)
+    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
     corr_device = correlation(P_total, device_index, 3)
     a, b = train_forecast(P_total, corr_device, device_index)
-    dirPath = os.path.join(Tool.sharedroot,"predict")
-    if not os.path.exists(dirPath):
-        os.makedirs(dirPath)
-    with open(os.path.join(dirPath, resultFileName + ".json"), "w") as f:
-        json.dump({'y_true': a, 'y_pred': b}, f)
+    lastResult = {'y_true':a,'y_pred':b}
+    jsonStr = json.dumps(lastResult)
+    cursor.execute("update powersystem.algorithmresult set json='%s' where hash='%s'"%(jsonStr,parameterHash))
+    db.commit()
+
+    # dirPath = os.path.join(Tool.sharedroot,"predict")
+    # if not os.path.exists(dirPath):
+    #     os.makedirs(dirPath)
+    # with open(os.path.join(dirPath, resultFileName + ".json"), "w") as f:
+    #     json.dump({'y_true': a, 'y_pred': b}, f)
 
 
 def correlationFunc(factory, line, device, measurePoint):
@@ -40,9 +45,7 @@ def correlationFunc(factory, line, device, measurePoint):
     md = hashlib.md5()
     md.update(allString.encode("utf8"))
     parameterHash = md.hexdigest()
-
-
-    P_total, device_index = Tool.getP_total(factory, line, device, measurePoint)
+    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
     corr_device = correlation(P_total, device_index, 3)
     # keys:带有设备的文件名  values:相似度
     a,b =  corr_device.keys(),corr_device.values
@@ -51,7 +54,7 @@ def correlationFunc(factory, line, device, measurePoint):
         resultDict[i] = j
 
     resultJson = json.dumps(resultDict,ensure_ascii=False)
-    db = pymysql.connect(host="139.199.36.137", user="root", password="dclab", db="powersystem")
+    db = pymysql.connect(host="localhost", user="root", password="dclab", db="powersystem")
     # 使用 cursor() 方法创建一个游标对象 cursor
     cursor = db.cursor()
     # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
