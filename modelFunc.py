@@ -21,9 +21,9 @@ def predictFunc(factory, line, device, measurePoint):
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
     corr_device = correlation(P_total, device_index, 3)
     a, b = train_forecast(P_total, corr_device, device_index)
-    lastResult = {'y_true':a,'y_pred':b}
+    lastResult = {'y_true': a, 'y_pred': b}
     jsonStr = json.dumps(lastResult)
-    updateSQL = "update powersystem.algorithmresult set json='%s' where hash='%s'"%(jsonStr,parameterHash)
+    updateSQL = "update powersystem.algorithmresult set json='%s' where hash='%s'" % (jsonStr, parameterHash)
     Tool.excuteSQL(updateSQL)
 
     # dirPath = os.path.join(Tool.sharedroot,"predict")
@@ -41,13 +41,24 @@ def correlationFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
     corr_device = correlation(P_total, device_index, 3)
+
+    addSelfDeviceCorrIndex = corr_device.index.tolist()
+    addSelfDeviceCorrIndex.append(device)
+    corrData = P_total.loc[:, addSelfDeviceCorrIndex]
+
+    corrDataDict = {
+        'timestamp': corrData.index.strftime("%Y-%m-%d %H:%M:%S").values.tolist(),
+    }
+    for i in addSelfDeviceCorrIndex:
+        corrDataDict[i] = corrData.loc[:, i].values.tolist()
+    corrDataJson = json.dumps(corrDataDict, ensure_ascii=False)
     # keys:带有设备的文件名  values:相似度
-    a,b =  corr_device.keys(),corr_device.values
+    a, b = corr_device.keys(), corr_device.values
     resultDict = {}
-    for i,j in zip(a,b):
+    for i, j in zip(a, b):
         resultDict[i] = j
 
-    resultJson = json.dumps(resultDict,ensure_ascii=False)
+    resultJson = json.dumps(resultDict, ensure_ascii=False)
 
-    sql = '''insert into powersystem.correlation values('%s','%s')''' % (parameterHash, resultJson)
+    sql = '''insert into powersystem.correlation values('%s','%s','%s')''' % (parameterHash, resultJson, corrDataJson)
     Tool.excuteSQL(sql)
