@@ -1,6 +1,6 @@
 FROM python:3.6
 WORKDIR /app
-COPY main.py .
+COPY oriCode.py .
 COPY web.py .
 COPY requirements.txt .
 RUN pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/

@@ -1,37 +1,15 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
-import numpy as np
-from scipy.stats.stats import pearsonr
-import scipy.io as sio
-import os
 import matplotlib.pyplot as plt
-from sklearn import model_selection
-from sklearn.linear_model import LinearRegression
-from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.svm import SVR
-from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import normalize
+import numpy as np
+import pandas as pd
 import xgboost as xgb
-import json
-import click
-from tqdm import tqdm
+from scipy.stats.stats import pearsonr
+from sklearn import model_selection
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import normalize
+
 # 读取数据
-sharedRoot = os.getenv("SHARED_ROOT")
-def readData(dataDir, name):
-    fileList = os.listdir(dataDir)
-    P_total = pd.DataFrame()
-    for file in tqdm(fileList):
-        fileDir = dataDir + file
-        data = pd.read_excel(fileDir, header=1,index_col=0)
-        data.index = pd.to_datetime(data.index)
-        data = data['2019-03-06':'2019-05-13']
-        if name in data.columns:
-            tmp = pd.DataFrame(data[name]).rename(columns={name: file})
-            P_total = P_total.join(tmp, how='outer')
-    P_total.dropna(axis=0, how='any', inplace=True)
-    P_total.drop_duplicates(inplace=True)
-    return P_total
+from Tool import Tool
 
 
 def pearsonLagSingle(P_total, i, j, timelag):  # 时滞-timelag~timelag间的最大pearson
@@ -69,7 +47,7 @@ def correlation(P_total, i, N, timelag=50):
     # plt.title('corr device with correlation coefficient')
     return device_pearsonLag[:N]
 
-
+# 返回的是两个list，分别为真实值和预测值
 def train_forecast(P_total, corr_device, device_index):
     day_point = 480  # 一天为480个数据点
     P_forecast = P_total.iloc[:, device_index]
@@ -134,11 +112,12 @@ def train_forecast(P_total, corr_device, device_index):
     plt.plot(np.array(y_total)[-7 * day_point:], label="y_true")
     plt.plot(np.concatenate((y_predict[-7 * day_point:], y_predict_nextday), axis=0), label="y_predict")
     plt.legend()
-    a,b = np.array(y_total)[-7 * day_point:],np.concatenate((y_predict[-7 * day_point:], y_predict_nextday), axis=0)
+    a, b = np.array(y_total)[-7 * day_point:], np.concatenate((y_predict[-7 * day_point:], y_predict_nextday), axis=0)
     # with open("predict.json","w") as f:
     #     json.dump({'y_true':a.tolist(),'y_pred':b.tolist()},f)
-        # f.write("\n".join([a.tolist(),b.tolist()]))
-    return a,b
+    # f.write("\n".join([a.tolist(),b.tolist()]))
+    return a.tolist(), b.tolist()
+
 
 def cluster(data):
     data_hour = data[:len(data) // 20 * 20].reshape([-1, 20])
@@ -164,29 +143,30 @@ def cluster(data):
 # @click.command()
 # @click.option('--name',default='三相总有功功率')
 def oldMain(factory, line, device, measurePoint='三相总有功功率'):
-    print(factory)
-    print(line)
-    print(device)
+    # print(factory)
+    # print(line)
+    # print(device)
+    #
+    # dataDir = "data/"+factory+"/"
+    # # measurePoint = ''  # 所分析数据项
+    # # device = '低压总出'  # 所要预测设备(全建筑总出)
+    # # if os.path.exists('data\\tmp\\P_total.csv'):
+    # #     P_total = pd.read_csv('data\\tmp\\P_total.csv', index_col=0)
+    # # else:
+    # P_total = readData(dataDir, (measurePoint))
+    # P_total.to_csv('data/tmp/P_total.csv')
+    # P_total.index = pd.to_datetime(P_total.index)
+    # # 补全device名并得到device_index
+    # for i in range(P_total.shape[1]):
+    #     if device in P_total.columns[i]:
+    #         device = P_total.columns[i]
+    #         device_index = i
+    # if device_index == -1:
+    #     raise NameError('Check the device!')
 
-    dataDir = "data/"+factory+"/"
-    # measurePoint = ''  # 所分析数据项
-    # device = '低压总出'  # 所要预测设备(全建筑总出)
-    # if os.path.exists('data\\tmp\\P_total.csv'):
-    #     P_total = pd.read_csv('data\\tmp\\P_total.csv', index_col=0)
-    # else:
-    P_total = readData(dataDir, (measurePoint))
-    P_total.to_csv('data/tmp/P_total.csv')
-    P_total.index = pd.to_datetime(P_total.index)
-    # 补全device名并得到device_index
-    for i in range(P_total.shape[1]):
-        if device in P_total.columns[i]:
-            device = P_total.columns[i]
-            device_index = i
-    if device_index == -1:
-        raise NameError('Check the device!')
-
-    #不需要时间参数
+    # 不需要时间参数
     # 功能一：基于自适应时滞pearson相关系数找最相关设备
+    P_total,device_index = Tool.getP_total(factory, line, device, measurePoint)
     print("—————————————————一、时空相关性分析(图1)—————————————————————")
     corr_device = correlation(P_total, device_index, 3)
     print('corr_device:', corr_device)
@@ -194,8 +174,8 @@ def oldMain(factory, line, device, measurePoint='三相总有功功率'):
     # 功能二：进行负荷预测模型的训练与测试
     # 需要返回什么数据/模型可自行修改函数
     print("—————————————————二、用户负荷建模与预测(图2)—————————————————————")
-    a,b = train_forecast(P_total, corr_device, device_index)
-    return a.tolist(),b.tolist()
+    a, b = train_forecast(P_total, corr_device, device_index)
+    return a.tolist(), b.tolist()
 
     # 功能三：以小时/天尺度对负荷数据进行聚类
     # 不需要时间参数

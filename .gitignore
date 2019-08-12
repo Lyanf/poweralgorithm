@@ -1,5 +1,8 @@
 *
-!main.py
+!oriCode.py
 !requirements.txt
 !web.py
 !Dockerfile
+!.gitignore
+!modelFunc.py
+!Tool.py
