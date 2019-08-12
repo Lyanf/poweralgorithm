@@ -1,9 +1,10 @@
 import hashlib
+import numpy as np
 import json
 import os
 import pymysql
 from Tool import Tool
-from oriCode import correlation, train_forecast
+from oriCode import correlation, train_forecast, cluster
 
 
 # 完全自己做，并且把数据放到数据库里面，把结果以json的格式防在文件夹里
@@ -61,4 +62,24 @@ def correlationFunc(factory, line, device, measurePoint):
     resultJson = json.dumps(resultDict, ensure_ascii=False)
 
     sql = '''insert into powersystem.correlation values('%s','%s','%s')''' % (parameterHash, resultJson, corrDataJson)
+    Tool.excuteSQL(sql)
+
+def clusterFunc(factory, line, device, measurePoint):
+    allString = factory + line + device + measurePoint
+    assert isinstance(allString, str)
+    md = hashlib.md5()
+    md.update(allString.encode("utf8"))
+    parameterHash = md.hexdigest()
+
+    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+    hourList, dayList = cluster(np.array(P_total.iloc[:,device_index]))
+    hourX = len(hourList[0])
+    dayX = len(dayList[0])
+    resultDict = {'hourX':list(range(0,hourX)),'dayX':list(range(0,dayX)),'hourList':hourList,'dayList':dayList}
+    try:
+        resultJson = json.dumps(resultDict,ensure_ascii=False)
+    except Exception as e:
+        e.with_traceback()
+
+    sql ="insert into cluster (hash,json)values ('%s','%s')"%(parameterHash,resultJson)
     Tool.excuteSQL(sql)

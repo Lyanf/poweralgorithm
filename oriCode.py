@@ -128,16 +128,21 @@ def cluster(data):
     kmeans_hour = KMeans(n_clusters=5, random_state=1).fit(data_hour)
     kmeans_day = KMeans(n_clusters=5, random_state=1).fit(data_day)
     plt.figure(figsize=(16, 8))
+    hourList = []
+    dayList = []
     for i in range(5):
+        hourList.append(kmeans_hour.cluster_centers_[i].tolist())
         plt.plot(kmeans_hour.cluster_centers_[i], label="cluster" + str(i))
     plt.legend()
     plt.title('cluster_hour')
     plt.figure(figsize=(16, 8))
     for i in range(5):
+        dayList.append(kmeans_day.cluster_centers_[i].tolist())
         plt.plot(kmeans_day.cluster_centers_[i], label="cluster" + str(i))
     plt.legend()
     plt.title('cluster_day')
-    return
+    # plt.show(block = True)
+    return hourList,dayList
 
 
 # @click.command()
