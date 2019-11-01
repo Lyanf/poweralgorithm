@@ -5,9 +5,10 @@ import os
 import pymysql
 from Tool import Tool
 from oriCode import correlation, train_forecast, cluster
+import datetime
 
 
-# 完全自己做，并且把数据放到数据库里面，把结果以json的格式防在文件夹里
+# 完全自己做，并且把数据放到数据库里面
 def predictFunc(factory, line, device, measurePoint):
     allString = factory + line + device + measurePoint
     assert isinstance(allString, str)
@@ -64,6 +65,7 @@ def correlationFunc(factory, line, device, measurePoint):
     sql = '''insert into powersystem.correlation values('%s','%s','%s')''' % (parameterHash, resultJson, corrDataJson)
     Tool.excuteSQL(sql)
 
+
 def clusterFunc(factory, line, device, measurePoint):
     allString = factory + line + device + measurePoint
     assert isinstance(allString, str)
@@ -72,14 +74,54 @@ def clusterFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    hourList, dayList = cluster(np.array(P_total.iloc[:,device_index]))
+    hourList, dayList = cluster(np.array(P_total.iloc[:, device_index]))
     hourX = len(hourList[0])
     dayX = len(dayList[0])
-    resultDict = {'hourX':list(range(0,hourX)),'dayX':list(range(0,dayX)),'hourList':hourList,'dayList':dayList}
+    resultDict = {'hourX': list(range(0, hourX)), 'dayX': list(range(0, dayX)), 'hourList': hourList,
+                  'dayList': dayList}
     try:
-        resultJson = json.dumps(resultDict,ensure_ascii=False)
+        resultJson = json.dumps(resultDict, ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
 
-    sql ="insert into cluster (hash,json)values ('%s','%s')"%(parameterHash,resultJson)
+    sql = "insert into cluster (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
+    Tool.excuteSQL(sql)
+
+
+def baseLine(factory, line, device, measurePoint, year, month, day):
+    allString = factory + line + device + measurePoint
+    assert isinstance(allString, str)
+    md = hashlib.md5()
+    md.update(allString.encode("utf8"))
+    parameterHash = md.hexdigest()
+
+    data, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+    data = data.iloc[:, device_index]
+
+    date = datetime.datetime(year, month, day)
+    date1 = date - datetime.timedelta(days=1)
+    date2 = date - datetime.timedelta(days=2)
+    date3 = date - datetime.timedelta(days=3)
+    date7 = date - datetime.timedelta(days=7)
+
+    data1, data2, data3, data7 = Tool.getData(data, date, 1), Tool.getData(data, date, 2), Tool.getData(data, date, 3), Tool.getData(data, date, 7)
+
+    res = (data1 + data2 + data3 + data7) / 4  # 该设备该日期的能耗基线
+
+    # plt.figure(figsize=(16, 8))
+    # plt.plot(res, label="能耗基线")
+    # plt.plot(np.array(data[str(date.year) + '-' + str(date.month) + '-' + str(date.day)]), label="实际值")
+    # plt.legend()
+    # plt.title('能耗基线与实际值对比')
+    baseValue = res
+    trueValue = np.array(data[str(date.year) + '-' + str(date.month) + '-' + str(date.day)])
+
+    resultDict = {'baseValue':list(baseValue),
+                  'trueValue':list(trueValue)}
+    try:
+        resultJson = json.dumps(resultDict, ensure_ascii=False)
+    except Exception as e:
+        e.with_traceback()
+
+    sql = "insert into baseline (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)

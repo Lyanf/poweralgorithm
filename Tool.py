@@ -3,6 +3,8 @@ import pandas as pd
 from tqdm import tqdm
 import sqlalchemy
 import pymysql
+import datetime
+import numpy as np
 
 class Tool:
     SHARED_ROOT = os.getenv("SHARED_ROOT")
@@ -57,16 +59,19 @@ class Tool:
             cls.__mapping["反向有功最大需量"] = "MaximumReverseActiveDemand"
             cls.__mapping["正向无功最大需量"] = "MaximumForwardReactivePowerDemand"
             cls.__mapping["反向无功最大需量"] = "MaximumReverseReactivePowerDemand"
+
     @classmethod
     def getMeasurePointMapping(cls):
         cls.__initMapping()
         return cls.__mapping
+
     @classmethod
     def getSQLEngine(cls):
-        db = sqlalchemy.create_engine("mysql+pymysql://root:dclab@%s/powersystem"%(cls.SQL_HOST))
+        db = sqlalchemy.create_engine("mysql+pymysql://root:dclab@%s/powersystem" % (cls.SQL_HOST))
         return db
+
     @classmethod
-    def excuteSQL(cls,sql):
+    def excuteSQL(cls, sql):
         db = pymysql.connect(host=cls.SQL_HOST, user="root", password="dclab", db="powersystem")
         # 使用 cursor() 方法创建一个游标对象 cursor
         cursor = db.cursor()
@@ -76,6 +81,7 @@ class Tool:
 
         cursor.close()
         db.close()
+
     # 指定一个测点，获取这个公司所有的设备，并且放进去，第一行放设备名称，然后返回第几列是选中的那个设备
     @staticmethod
     def getP_total(factory, line, device, measurePoint):
@@ -123,7 +129,7 @@ class Tool:
         deviceList.remove(device)
         tableNames = "abcdefghijklmnopqrstuvwxyz"
         fieldNames = ["a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9""a10", "a11", "a12", "a13", "a14",
-                      "b1","b2","b3","b4","b5","b6","b7","b8","b9","b10","b11","b12","b13","b14"]
+                      "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "b10", "b11", "b12", "b13", "b14"]
         # usedFieldNames = []
         # for deviceName in deviceList:
         baseSQL1 = "select basetable.timestamp,basetable.%s  " % ("basetable")
@@ -150,11 +156,26 @@ class Tool:
         indexedDataFrame = originDataFrame.set_index("timestamp")
         indexedDataFrame.index = pd.to_datetime(indexedDataFrame.index)
         # 指定了时间
-        indexedDataFrame = indexedDataFrame['2019-03-06':'2019-05-13']
+        # indexedDataFrame = indexedDataFrame['2019-03-06':'2019-05-13']
         indexedDataFrame = indexedDataFrame.dropna()
         indexedDataFrame = indexedDataFrame.drop_duplicates()
         deviceList.insert(0, device)
         indexedDataFrame.columns = deviceList
         # 返回一个0是因为，原本的P_total需要一个device_index标记当前选择的是哪个设备
         # 但是新方法这个设备一定是在第0列
-        return indexedDataFrame,0
+        return indexedDataFrame, 0
+
+    @staticmethod
+    def getData(data, date, delta):
+        date -= datetime.timedelta(days=delta)
+        dateStr = str(date.year) + '-' + "%0.2d"%(date.month)+ '-' + "%0.2d"%(date.day)
+        res = data[dateStr]
+        count = 0
+        while len(res) != 480:
+            date -= datetime.timedelta(days=1)
+            dateStr = str(date.year) + '-' + "%0.2d"%(date.month)+ '-' + "%0.2d"%(date.day)
+            res = data[dateStr]
+            count += 1
+            if count > 10:
+                return 0
+        return np.array(res)

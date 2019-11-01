@@ -6,7 +6,7 @@ import threading
 import json
 import os
 from oriCode import oldMain, correlation, train_forecast
-from modelFunc import predictFunc, correlationFunc, clusterFunc
+from modelFunc import predictFunc, correlationFunc, clusterFunc, baseLine
 
 app = Flask(__name__)
 api = Api(app)
@@ -38,8 +38,8 @@ class Correlation(Resource):
         line = request.json['line']
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        print(factory,line,device,measurePoint)
-        correlationFunc(factory,line,device,measurePoint)
+        print(factory, line, device, measurePoint)
+        correlationFunc(factory, line, device, measurePoint)
         return {'status': "ok"}
 
 
@@ -54,8 +54,22 @@ class Cluster(Resource):
         return {'status': "ok"}
 
 
+class BaseLine(Resource):
+    def post(self):
+        factory = request.json['factory']
+        line = request.json['line']
+        device = request.json['device']
+        measurePoint = request.json['measurePoint']
+        print(factory, line, device, measurePoint)
+        year = int(request.json['year'])
+        month = int(request.json['month'])+1
+        day = int(request.json['day'])+1
+        baseLine(factory, line, device, measurePoint, year, month, day)
+
+
 api.add_resource(Predict, '/algorithm/predict')
 api.add_resource(Correlation, '/algorithm/correlation')
 api.add_resource(Cluster, '/algorithm/cluster')
+api.add_resource(BaseLine, '/algorithm/baseline')
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
