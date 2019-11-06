@@ -62,8 +62,8 @@ class BaseLine(Resource):
         measurePoint = request.json['measurePoint']
         print(factory, line, device, measurePoint)
         year = int(request.json['year'])
-        month = int(request.json['month'])+1
-        day = int(request.json['day'])+1
+        month = int(request.json['month'])
+        day = int(request.json['day'])
         baseLine(factory, line, device, measurePoint, year, month, day)
 
 
