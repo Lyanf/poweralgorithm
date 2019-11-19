@@ -22,7 +22,7 @@ def readData(dataDir):
     res = pd.DataFrame()
     for file in fileList:
         fileDir = dataDir + file
-        data = pd.read_excel(fileDir, header=1)
+        data = pd.read_excel(fileDir, header=1,index_col=0)
         data.index = pd.to_datetime(data.index)
         data['date'] = [datetime.datetime.strftime(x, '%Y-%m-%d') for x in data.index]
         data['month'] = [x.month for x in data.index]
