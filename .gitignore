@@ -1,8 +1,4 @@
-*
-!oriCode.py
-!requirements.txt
-!web.py
-!Dockerfile
-!.gitignore
-!modelFunc.py
-!Tool.py
+*test*.*
+.idea
+__pycache__/
+db.ipynb

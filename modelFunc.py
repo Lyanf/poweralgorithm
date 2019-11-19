@@ -4,8 +4,17 @@ import json
 import os
 import pymysql
 from Tool import Tool
-from oriCode import correlation, train_forecast, cluster
+from usedMain import correlation, train_forecast, cluster, profileFeature
 import datetime
+
+
+def predictRealData(factory, line, device, measurePoint, year, month, day):
+    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+    P_total = P_total[year + '-' + month + '-' + day]
+    day_point = 480  # 一天为480个数据点
+    P_forecast = P_total.iloc[:, device_index]
+    y_total = P_forecast[day_point * 7:].reset_index(drop=True)
+    return np.array(y_total)[-7 * day_point:].tolist()
 
 
 # 完全自己做，并且把数据放到数据库里面
@@ -74,7 +83,9 @@ def clusterFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    hourList, dayList = cluster(np.array(P_total.iloc[:, device_index]))
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]))
+    hourList = kmeans_hour
+    dayList = kmeans_day
     hourX = len(hourList[0])
     dayX = len(dayList[0])
     resultDict = {'hourX': list(range(0, hourX)), 'dayX': list(range(0, dayX)), 'hourList': hourList,
@@ -104,7 +115,9 @@ def baseLine(factory, line, device, measurePoint, year, month, day):
     date3 = date - datetime.timedelta(days=3)
     date7 = date - datetime.timedelta(days=7)
 
-    data1, data2, data3, data7 = Tool.getData(data, date, 1), Tool.getData(data, date, 2), Tool.getData(data, date, 3), Tool.getData(data, date, 7)
+    data1, data2, data3, data7 = Tool.getData(data, date, 1), Tool.getData(data, date, 2), Tool.getData(data, date,
+                                                                                                        3), Tool.getData(
+        data, date, 7)
 
     res = (data1 + data2 + data3 + data7) / 4  # 该设备该日期的能耗基线
 
@@ -116,12 +129,57 @@ def baseLine(factory, line, device, measurePoint, year, month, day):
     baseValue = res
     trueValue = np.array(data[str(date.year) + '-' + str(date.month) + '-' + str(date.day)])
 
-    resultDict = {'baseValue':list(baseValue),
-                  'trueValue':list(trueValue)}
+    resultDict = {'baseValue': list(baseValue),
+                  'trueValue': list(trueValue)}
     try:
         resultJson = json.dumps(resultDict, ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
 
     sql = "insert into baseline (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
+    Tool.excuteSQL(sql)
+
+
+def profileFeatureFunc(factory, line, device, measurePoint):
+    allString = factory + line + device + measurePoint
+    assert isinstance(allString, str)
+    md = hashlib.md5()
+    md.update(allString.encode("utf8"))
+    parameterHash = md.hexdigest()
+
+    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]))
+    staticFeatures, dynamicFeatures = profileFeature(P_total.iloc[:, device_index], kmeans_hour, kmeans_day,
+                                                     labels_hour, labels_day)
+    staticFeatures[0]
+    staticFeatures[5] = str(staticFeatures[5])
+    staticFeatures[7] = staticFeatures[7].tolist()
+    staticFeatures[8] = staticFeatures[8].tolist()
+    dynamicFeatures[0] = dynamicFeatures[0].tolist()
+    dynamicFeatures[2] = dynamicFeatures[2].tolist()
+    staticFeaturesObj = {
+        '最大值':staticFeatures[0],
+        '最小值':staticFeatures[1],
+        '中位数': staticFeatures[2],
+        '均值': staticFeatures[3],
+        '标准差': staticFeatures[4],
+        'fft频谱均值': staticFeatures[5],
+        'fft频谱标准差': staticFeatures[6],
+        '典型特征模式曲线（小时尺度）': staticFeatures[7],
+        '线性特征模式曲线（天尺度）': staticFeatures[8],
+    }
+    dynamicFeaturesObj = {
+        '基于聚类结果的马尔科夫转移矩阵（小时尺度）':dynamicFeatures[0],
+        '行为信息熵（小时尺度）':dynamicFeatures[1],
+        '基于聚类结果的科尔科夫转移矩阵（天尺度）':dynamicFeatures[2],
+        '行为信息熵（天尺度）':dynamicFeatures[3]
+    }
+    resultDict = {'静态特性': staticFeaturesObj, '动态特性': dynamicFeaturesObj}
+
+    try:
+        resultJson = json.dumps(resultDict,ensure_ascii=False)
+    except Exception as e:
+        e.with_traceback()
+
+    sql = "insert into profileFeature (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)

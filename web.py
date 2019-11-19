@@ -5,12 +5,29 @@ import pymysql
 import threading
 import json
 import os
-from oriCode import oldMain, correlation, train_forecast
-from modelFunc import predictFunc, correlationFunc, clusterFunc, baseLine
+from usedMain import oldMain, correlation, train_forecast
+from modelFunc import predictRealData, predictFunc, correlationFunc, clusterFunc, baseLine,profileFeatureFunc
 
 app = Flask(__name__)
 api = Api(app)
 allThread = []
+
+
+class PredictRealData(Resource):
+    def post(self):
+        factory = request.json['factory']
+        line = request.json['line']
+        device = request.json['device']
+        measurePoint = request.json['measurePoint']
+        year = int(request.json['year'])
+        month = int(request.json['month'])
+        day = int(request.json['day'])
+        allString = factory + line + device + measurePoint
+        print(allString)
+        assert isinstance(allString, str)
+
+        print(factory, line, device, measurePoint)
+        return predictRealData(factory, line, device, measurePoint, year, month, day)
 
 
 class Predict(Resource):
@@ -67,9 +84,18 @@ class BaseLine(Resource):
         baseLine(factory, line, device, measurePoint, year, month, day)
 
 
+class ProfileFeature(Resource):
+    def post(self):
+        factory = request.json['factory']
+        line = request.json['line']
+        device = request.json['device']
+        measurePoint = request.json['measurePoint']
+        print(factory, line, device, measurePoint)
+        profileFeatureFunc(factory, line, device, measurePoint)
 api.add_resource(Predict, '/algorithm/predict')
 api.add_resource(Correlation, '/algorithm/correlation')
 api.add_resource(Cluster, '/algorithm/cluster')
 api.add_resource(BaseLine, '/algorithm/baseline')
+api.add_resource(ProfileFeature, '/algorithm/profilefeature')
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
