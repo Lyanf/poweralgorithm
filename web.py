@@ -7,7 +7,8 @@ import json
 import os
 from usedMain import oldMain, correlation, train_forecast
 from modelFunc import predictRealData, predictFunc, correlationFunc, clusterFunc, baseLine,profileFeatureFunc
-
+from olap_code import Slice
+from olap_code import Drill
 app = Flask(__name__)
 api = Api(app)
 allThread = []
@@ -92,10 +93,38 @@ class ProfileFeature(Resource):
         measurePoint = request.json['measurePoint']
         print(factory, line, device, measurePoint)
         profileFeatureFunc(factory, line, device, measurePoint)
+
+class OlapSlice(Resource):
+    def post(self):
+        js:dict = request.json
+        user =  js.get('factory')
+        device = js.get('device')
+        timeRange = js.get('timeRange')
+        metric = js.get('metric')
+        para1 = js.get('para1')
+        para2 = js.get('para2')
+        dataSlice7 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, para1,
+                           para2)
+
+
+class OlapDrill(Resource):
+    def post(self):
+        js: dict = request.json
+        user = js.get('factory')
+        device = js.get('device')
+        timeRange = js.get('timeRange')
+        metric = js.get('metric')
+        para1 = js.get('para1')
+        para2 = js.get('para2')
+        dataDrill1 = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, para1, para2)
+
+
 api.add_resource(Predict, '/algorithm/predict')
 api.add_resource(Correlation, '/algorithm/correlation')
 api.add_resource(Cluster, '/algorithm/cluster')
 api.add_resource(BaseLine, '/algorithm/baseline')
 api.add_resource(ProfileFeature, '/algorithm/profilefeature')
+api.add_resource(OlapSlice, '/algorithm/olapslice')
+api.add_resource(OlapDrill, '/algorithm/olapdrill')
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

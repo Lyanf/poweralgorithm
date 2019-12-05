@@ -179,3 +179,25 @@ class Tool:
             if count > 10:
                 return 0
         return np.array(res)
+
+    @staticmethod
+    def olapReadDataBySQL(dataDir):
+        fileList = os.listdir(dataDir)
+        res = pd.DataFrame()
+        for file in fileList:
+            fileDir = dataDir + file
+            data = pd.read_excel(fileDir, header=1, index_col=0)
+            data.index = pd.to_datetime(data.index)
+            data['date'] = [datetime.datetime.strftime(x, '%Y-%m-%d') for x in data.index]
+            data['month'] = [x.month for x in data.index]
+            data['device'] = file
+            data['user'] = "常州天和印染有限公司"
+            res = res.append(data)
+        res['time'] = res.index
+        metricList = list(res.columns)
+        metricList.remove('user')
+        metricList.remove('month')
+        metricList.remove('date')
+        metricList.remove('device')
+        metricList.remove('time')
+        return res, fileList, metricList

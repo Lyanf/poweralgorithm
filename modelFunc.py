@@ -183,3 +183,9 @@ def profileFeatureFunc(factory, line, device, measurePoint):
 
     sql = "insert into profileFeature (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)
+
+def olapSlice(totalData,deviceList,metricList,user,device,timeRange,metric,collect:list,method):
+    pass
+
+def olapDrill():
+    pass
