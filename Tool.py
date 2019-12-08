@@ -5,10 +5,12 @@ import sqlalchemy
 import pymysql
 import datetime
 import numpy as np
+import pyodbc
 
 class Tool:
     SHARED_ROOT = os.getenv("SHARED_ROOT")
-    SQL_HOST = "localhost"
+    #SQL_HOST = "localhost"
+    SQL_HOST = "121.46.233.22"
     __mapping = {}
     __mappingInit = False
 
@@ -67,13 +69,16 @@ class Tool:
 
     @classmethod
     def getSQLEngine(cls):
-        db = sqlalchemy.create_engine("mysql+pymysql://root:dclab@%s/powersystem" % (cls.SQL_HOST))
-        return db
+        #db = sqlalchemy.create_engine("mysql+pymysql://root:dclab@%s/powersystem" % (cls.SQL_HOST))
+        cnxn = pyodbc.connect("DSN=sjtudata")
+
+        return cnxn
 
     @classmethod
     def excuteSQL(cls, sql):
-        db = pymysql.connect(host=cls.SQL_HOST, user="root", password="dclab", db="powersystem")
+        # db = pymysql.connect(host=cls.SQL_HOST, user="root", password="dclab", db="powersystem")
         # 使用 cursor() 方法创建一个游标对象 cursor
+        db = Tool.getSQLEngine();
         cursor = db.cursor()
         # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
         cursor.execute(sql)
@@ -122,48 +127,63 @@ class Tool:
 
     @staticmethod
     def getP_totalBySQL(factory, line, device, measurePoint):
-        SQLEngine = Tool.getSQLEngine()
+        # SQLEngine = Tool.getSQLEngine()
+        # deviceList = []
+        # # for i in pd.read_sql("select distinct device from datas where factory='%s'" % (factory), SQLEngine).values:
+        # for i in pd.read_sql("select distinct device from " + Tool.translateTable() +" where factory='%s'" % (factory), SQLEngine).values:
+        #     deviceList.append(i[0])
+        # deviceList.remove(device)
+        # tableNames = "abcdefghijklmnopqrstuvwxyz"
+        # fieldNames = ["a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9""a10", "a11", "a12", "a13", "a14",
+        #               "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "b10", "b11", "b12", "b13", "b14"]
+        # # usedFieldNames = []
+        # # for deviceName in deviceList:
+        # baseSQL1 = "select basetable.timestamps,basetable.%s  " % ("basetable")
+        # baseSQL2 = "  from (select timestamps,%s as %s from " + Tool.translateTable() +" where factory='%s' and line= '%s' and device = '%s') as basetable" \
+        #            % (measurePoint, "basetable", factory, line, device)
+        # selectFiled = ''
+        # joinSQL = ''
+        # # 前半段select
+        # SQL1 = 'select timestamps'
+        # # 后半段join的部分
+        # SQL2 = ''
+        # for i in range(0, len(deviceList)):
+        #     fieldName = fieldNames[i]
+        #     deviceName = deviceList[i]
+        #     tableName = tableNames[i]
+        #     # 以device为基准，增加其他设备的值，所以自身就不用加了
+        #     selectFiled = selectFiled + " ,%s.%s" % (tableName, fieldName)
+        #     joinSQL = joinSQL + " left outer join (select timestamps, %s as '%s' from " + Tool.translateTable() +" where factory = '%s' and device = '%s')as %s" \
+        #                         " on basetable.timestamps = %s.timestamps " \
+        #               % (measurePoint, fieldName, factory, deviceName, tableName, tableName)
+        #
+        # allSQL = baseSQL1 + selectFiled + baseSQL2 + joinSQL
+        df = pd.read_sql('SELECT distinct meterid FROM rtdata;', Tool.getSQLEngine())
+        sql = "select * from (select regdate AS timestamps "
         deviceList = []
-        for i in pd.read_sql("select distinct device from datas where factory='%s'" % (factory), SQLEngine).values:
-            deviceList.append(i[0])
-        deviceList.remove(device)
-        tableNames = "abcdefghijklmnopqrstuvwxyz"
-        fieldNames = ["a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9""a10", "a11", "a12", "a13", "a14",
-                      "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "b10", "b11", "b12", "b13", "b14"]
-        # usedFieldNames = []
-        # for deviceName in deviceList:
-        baseSQL1 = "select basetable.timestamp,basetable.%s  " % ("basetable")
-        baseSQL2 = "  from (select timestamp,%s as %s from datas where factory='%s' and line= '%s' and device = '%s') as basetable" \
-                   % (measurePoint, "basetable", factory, line, device)
-        selectFiled = ''
-        joinSQL = ''
-        # 前半段select
-        SQL1 = 'select timestamp'
-        # 后半段join的部分
-        SQL2 = ''
-        for i in range(0, len(deviceList)):
-            fieldName = fieldNames[i]
-            deviceName = deviceList[i]
-            tableName = tableNames[i]
-            # 以device为基准，增加其他设备的值，所以自身就不用加了
-            selectFiled = selectFiled + " ,%s.%s" % (tableName, fieldName)
-            joinSQL = joinSQL + " left outer join (select timestamp, %s as '%s' from datas where factory = '%s' and device = '%s')as %s" \
-                                " on basetable.timestamp = %s.timestamp " \
-                      % (measurePoint, fieldName, factory, deviceName, tableName, tableName)
-
-        allSQL = baseSQL1 + selectFiled + baseSQL2 + joinSQL
-        originDataFrame = pd.read_sql(allSQL, SQLEngine)
-        indexedDataFrame = originDataFrame.set_index("timestamp")
+        reloc = 0
+        for i in range(len(df)):
+            deviceList.append(df.iloc[i].values[0])
+            if (df.iloc[i].values[0] == device):
+                reloc = i + 1
+            sql += ",max(case meterid when '" + df.iloc[i].values[0] + "' then culunmvalue else 0 end) as '" + \
+                   df.iloc[i].values[0] + "'"
+        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "'  group by regdate)"
+        originDataFrame = pd.read_sql(sql, Tool.getSQLEngine())
+        # print(allSQL)
+        # originDataFrame = pd.read_sql(allSQL, SQLEngine)
+        indexedDataFrame = originDataFrame.set_index("timestamps")
         indexedDataFrame.index = pd.to_datetime(indexedDataFrame.index)
         # 指定了时间
         # indexedDataFrame = indexedDataFrame['2019-03-06':'2019-05-13']
         indexedDataFrame = indexedDataFrame.dropna()
         indexedDataFrame = indexedDataFrame.drop_duplicates()
-        deviceList.insert(0, device)
+        # deviceList.insert(0, device)
         indexedDataFrame.columns = deviceList
         # 返回一个0是因为，原本的P_total需要一个device_index标记当前选择的是哪个设备
         # 但是新方法这个设备一定是在第0列
-        return indexedDataFrame, 0
+        return indexedDataFrame, reloc
+
 
     @staticmethod
     def getData(data, date, delta):
@@ -201,3 +221,33 @@ class Tool:
         metricList.remove('device')
         metricList.remove('time')
         return res, fileList, metricList
+
+    @staticmethod
+    def translateTable():
+        SQLEngine = Tool.getSQLEngine()
+        sql = "SELECT distinct metercolumn FROM rtdata"
+        metercolumnlist = SQLEngine.cursor().execute(sql).fetchall()
+        sqltable = "select regdate as timestamps, customerid as factory, customerid AS line,meterid AS device"
+        for m in metercolumnlist:
+        	sqltable =  sqltable + ", max(case metercolumn when '" +m[0] + "' then culunmvalue else 0 end) as " + m[0]
+        sqltable = sqltable + " from rtdata group by regdate,customerid ,meterid"
+        sqltable = " (" +sqltable +") "
+        # print(sqltable)
+        # daf = pd.read_sql("select timestamps from "  + sqltable + " WHERE timestamps > DATE('" + starttime +"') AND timestamps < DATE('"+ endtime+"')" ,SQLEngine)
+        # for i in range(len(daf)):
+        #     print(daf.iloc[i].values)
+        return sqltable
+
+    @staticmethod
+    def getDevice():
+        SQLEngine = Tool.getSQLEngine()
+        sql = "SELECT distinct meterid FROM rtdata"
+        meteridlist = SQLEngine.cursor().execute(sql).fetchall()
+        return meteridlist
+
+    @staticmethod
+    def getMeasurePoint():
+        SQLEngine = Tool.getSQLEngine()
+        sql = "SELECT distinct metercolumn FROM rtdata"
+        metercolumnlist = SQLEngine.cursor().execute(sql).fetchall()
+        return metercolumnlist

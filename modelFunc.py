@@ -3,6 +3,7 @@ import numpy as np
 import json
 import os
 import pymysql
+import pyodbc
 from Tool import Tool
 from usedMain import correlation, train_forecast, cluster, profileFeature
 import datetime
@@ -26,7 +27,7 @@ def predictFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
     resultFileName = parameterHash[0:15]
 
-    insertSQL = '''insert into powersystem.algorithmresult values("%s","%s",null)''' % (parameterHash, resultFileName)
+    insertSQL = '''insert into algorithmresult values("%s","%s",null)''' % (parameterHash, resultFileName)
     Tool.excuteSQL(insertSQL)
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
@@ -34,7 +35,7 @@ def predictFunc(factory, line, device, measurePoint):
     a, b = train_forecast(P_total, corr_device, device_index)
     lastResult = {'y_true': a, 'y_pred': b}
     jsonStr = json.dumps(lastResult)
-    updateSQL = "update powersystem.algorithmresult set json='%s' where hash='%s'" % (jsonStr, parameterHash)
+    updateSQL = "update algorithmresult set json='%s' where hash='%s'" % (jsonStr, parameterHash)
     Tool.excuteSQL(updateSQL)
 
     # dirPath = os.path.join(Tool.sharedroot,"predict")
@@ -71,7 +72,8 @@ def correlationFunc(factory, line, device, measurePoint):
 
     resultJson = json.dumps(resultDict, ensure_ascii=False)
 
-    sql = '''insert into powersystem.correlation values('%s','%s','%s')''' % (parameterHash, resultJson, corrDataJson)
+    sql = '''insert into sjtudb.correlation values('%s','%s','%s')''' % (parameterHash, resultJson, pyodbc.Binary(corrDataJson))
+    print(sql)
     Tool.excuteSQL(sql)
 
 

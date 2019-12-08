@@ -9,6 +9,9 @@ from usedMain import oldMain, correlation, train_forecast
 from modelFunc import predictRealData, predictFunc, correlationFunc, clusterFunc, baseLine,profileFeatureFunc
 from olap_code import Slice
 from olap_code import Drill
+
+from Tool import Tool
+
 app = Flask(__name__)
 api = Api(app)
 allThread = []
@@ -117,7 +120,9 @@ class OlapDrill(Resource):
         para1 = js.get('para1')
         para2 = js.get('para2')
         dataDrill1 = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, para1, para2)
-
+class Test(Resource):
+    def get(self):
+        Tool.translateTable()
 
 api.add_resource(Predict, '/algorithm/predict')
 api.add_resource(Correlation, '/algorithm/correlation')
@@ -126,5 +131,9 @@ api.add_resource(BaseLine, '/algorithm/baseline')
 api.add_resource(ProfileFeature, '/algorithm/profilefeature')
 api.add_resource(OlapSlice, '/algorithm/olapslice')
 api.add_resource(OlapDrill, '/algorithm/olapdrill')
+
+api.add_resource(Test,'/test')
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
