@@ -68,9 +68,12 @@ def correlation(P_total, i, N, timelag=50):
 
 
 # 返回的是两个list，分别为真实值和预测值
-def train_forecast(P_total, corr_device, device_index):
-    day_point = 480  # 一天为480个数据点
+def train_forecast(P_total, corr_device, device_index,day_point):
+    pd.set_option('display.max_columns', None)
+
+    # day_point = 480  # 一天为480个数据点
     P_forecast = P_total.iloc[:, device_index]
+
     y_total = P_forecast[day_point * 7:].reset_index(drop=True)
     X_total = pd.DataFrame(index=range(len(y_total)))
     timeStamp = pd.Series(P_forecast[day_point * 7:].index)
@@ -80,6 +83,7 @@ def train_forecast(P_total, corr_device, device_index):
     X_total['hour'] = timeStamp.map(lambda x: x.hour)
     X_total['7dAgo'] = P_forecast[:-day_point * 7].reset_index(drop=True)
     X_total['1dAgo'] = P_forecast[day_point * 6:-day_point * 1].reset_index(drop=True)
+
     for i in range(len(corr_device)):
         P_corr = P_total.loc[:, corr_device.index[i]]
         X_total['7dAgo_corr' + str(i)] = P_corr[:-day_point * 7].reset_index(drop=True)
@@ -90,8 +94,10 @@ def train_forecast(P_total, corr_device, device_index):
     y_min = y_total.min()
     y_max = y_total.max()
     # 分割训练集测试集
-    X_train_norm, X_test_norm, y_train_norm, y_test_norm = model_selection.train_test_split(X_norm, y_norm,
-                                                                                            test_size=0.3)
+    X_train_norm, X_test_norm, y_train_norm, y_test_norm = model_selection.train_test_split(X_norm, y_norm, test_size=0.3)
+
+    
+
     y_test = y_test_norm * (y_max - y_min) + y_min
     y_train = y_train_norm * (y_max - y_min) + y_min
     # 训练与测试
@@ -104,6 +110,7 @@ def train_forecast(P_total, corr_device, device_index):
     y_predict_test = y_predict_test_norm * (y_max - y_min) + y_min
     MAPE_test = np.mean(abs(y_predict_test - y_test) / y_test) * 100
     RMSE_test = np.sqrt(np.mean((y_predict_test - y_test) ** 2))
+
     print('MAPE_test: %f, RMSE_test: %f', MAPE_test, RMSE_test)
     # 训练集误差
     y_predict_train_norm = estimator.predict(X_train_norm)

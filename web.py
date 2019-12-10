@@ -120,6 +120,8 @@ class OlapDrill(Resource):
         para1 = js.get('para1')
         para2 = js.get('para2')
         dataDrill1 = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, para1, para2)
+
+
 class Test(Resource):
     def get(self):
         Tool.translateTable()

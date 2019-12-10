@@ -27,16 +27,21 @@ def predictFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
     resultFileName = parameterHash[0:15]
 
-    insertSQL = '''insert into algorithmresult values("%s","%s",null)''' % (parameterHash, resultFileName)
-    Tool.excuteSQL(insertSQL)
+    # insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s',null)''' % (parameterHash, resultFileName)
+    # Tool.excuteSQL(insertSQL)
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+
     corr_device = correlation(P_total, device_index, 3)
-    a, b = train_forecast(P_total, corr_device, device_index)
+    a, b = train_forecast(P_total, corr_device, device_index,96)
     lastResult = {'y_true': a, 'y_pred': b}
     jsonStr = json.dumps(lastResult)
-    updateSQL = "update algorithmresult set json='%s' where hash='%s'" % (jsonStr, parameterHash)
-    Tool.excuteSQL(updateSQL)
+
+    insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s','%s')''' % (parameterHash, resultFileName,jsonStr)
+    # print(insertSQL)
+    Tool.excuteSQL(insertSQL)
+    # updateSQL = "update sjtudb.algorithmresult set json='%s' where hash='%s'" % (jsonStr, parameterHash)
+    # Tool.excuteSQL(updateSQL)
 
     # dirPath = os.path.join(Tool.sharedroot,"predict")
     # if not os.path.exists(dirPath):
@@ -72,8 +77,8 @@ def correlationFunc(factory, line, device, measurePoint):
 
     resultJson = json.dumps(resultDict, ensure_ascii=False)
 
-    sql = '''insert into sjtudb.correlation values('%s','%s','%s')''' % (parameterHash, resultJson, pyodbc.Binary(corrDataJson))
-    print(sql)
+
+    sql = ''' insert into sjtudb.correlation values('%s','%s','%s') ''' % (parameterHash, resultJson, corrDataJson)
     Tool.excuteSQL(sql)
 
 
@@ -97,7 +102,7 @@ def clusterFunc(factory, line, device, measurePoint):
     except Exception as e:
         e.with_traceback()
 
-    sql = "insert into cluster (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
+    sql = "insert into cluster (hashstr,json)values ('%s', '%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)
 
 
@@ -117,9 +122,7 @@ def baseLine(factory, line, device, measurePoint, year, month, day):
     date3 = date - datetime.timedelta(days=3)
     date7 = date - datetime.timedelta(days=7)
 
-    data1, data2, data3, data7 = Tool.getData(data, date, 1), Tool.getData(data, date, 2), Tool.getData(data, date,
-                                                                                                        3), Tool.getData(
-        data, date, 7)
+    data1, data2, data3, data7 = Tool.getData(data, date, 1), Tool.getData(data, date, 2), Tool.getData(data, date, 3), Tool.getData(data, date, 7)
 
     res = (data1 + data2 + data3 + data7) / 4  # 该设备该日期的能耗基线
 
@@ -138,7 +141,8 @@ def baseLine(factory, line, device, measurePoint, year, month, day):
     except Exception as e:
         e.with_traceback()
 
-    sql = "insert into baseline (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
+    sql = "insert into baseline (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
+
     Tool.excuteSQL(sql)
 
 
@@ -182,8 +186,9 @@ def profileFeatureFunc(factory, line, device, measurePoint):
         resultJson = json.dumps(resultDict,ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
+    print(len(resultJson))
 
-    sql = "insert into profileFeature (hash,json)values ('%s','%s')" % (parameterHash, resultJson)
+    sql = "insert into profileFeature (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)
 
 def olapSlice(totalData,deviceList,metricList,user,device,timeRange,metric,collect:list,method):

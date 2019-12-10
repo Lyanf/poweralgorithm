@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     # 将整个建筑的信息放进一张大表。行为(时间+设备+用户),列为属性
     totalData, deviceList, metricList = readData(dataDir)
-
+    print(totalData)
     # 选项字段
     user = ["常州天和印染有限公司"]
     device = deviceList[2:5]

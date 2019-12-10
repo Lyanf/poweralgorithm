@@ -81,6 +81,7 @@ class Tool:
         db = Tool.getSQLEngine();
         cursor = db.cursor()
         # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
+        cursor.execute("SET character.literal.as.string=TRUE;")
         cursor.execute(sql)
         db.commit()
 
@@ -168,20 +169,29 @@ class Tool:
                 reloc = i + 1
             sql += ",max(case meterid when '" + df.iloc[i].values[0] + "' then culunmvalue else 0 end) as '" + \
                    df.iloc[i].values[0] + "'"
-        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "'  group by regdate)"
+        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "' and customerid = " + line +"  group by regdate)"
         originDataFrame = pd.read_sql(sql, Tool.getSQLEngine())
+
         # print(allSQL)
         # originDataFrame = pd.read_sql(allSQL, SQLEngine)
         indexedDataFrame = originDataFrame.set_index("timestamps")
         indexedDataFrame.index = pd.to_datetime(indexedDataFrame.index)
+        indexedDataFrame = indexedDataFrame.sort_index()
+
         # 指定了时间
         # indexedDataFrame = indexedDataFrame['2019-03-06':'2019-05-13']
         indexedDataFrame = indexedDataFrame.dropna()
         indexedDataFrame = indexedDataFrame.drop_duplicates()
         # deviceList.insert(0, device)
         indexedDataFrame.columns = deviceList
+        del_list = []
+        for i in range(indexedDataFrame.shape[1]):
+            if max(indexedDataFrame.iloc[:, i]) - min(indexedDataFrame.iloc[:, i]) == 0:
+                del_list.append(i)
+        indexedDataFrame.drop(indexedDataFrame.columns[del_list], axis=1, inplace=True)
         # 返回一个0是因为，原本的P_total需要一个device_index标记当前选择的是哪个设备
         # 但是新方法这个设备一定是在第0列
+
         return indexedDataFrame, reloc
 
 
