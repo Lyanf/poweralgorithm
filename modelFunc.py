@@ -1,12 +1,16 @@
+
 import hashlib
 import numpy as np
 import json
 import os
 import pymysql
 import pyodbc
+import pandas as pd
 from Tool import Tool
-from usedMain import correlation, train_forecast, cluster, profileFeature
+from usedMain import correlation, train_forecast, cluster, profileFeature, baseline
 import datetime
+from olap_code import Slice, Drill
+
 
 
 def predictRealData(factory, line, device, measurePoint, year, month, day):
@@ -90,23 +94,28 @@ def clusterFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]))
-    hourList = kmeans_hour
-    dayList = kmeans_day
+
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), 96)
+
+    hourList = kmeans_hour.tolist()
+    dayList = kmeans_day.tolist()
+    # print(dayList)
     hourX = len(hourList[0])
     dayX = len(dayList[0])
     resultDict = {'hourX': list(range(0, hourX)), 'dayX': list(range(0, dayX)), 'hourList': hourList,
                   'dayList': dayList}
+
     try:
+
         resultJson = json.dumps(resultDict, ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
 
-    sql = "insert into cluster (hashstr,json)values ('%s', '%s')" % (parameterHash, resultJson)
+    sql = "insert into clusterresult (hashstr,json)values ('%s', '%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)
 
 
-def baseLine(factory, line, device, measurePoint, year, month, day):
+def baseLine(factory, line, device, measurePoint, year, month, day, day_point = 96):
     allString = factory + line + device + measurePoint
     assert isinstance(allString, str)
     md = hashlib.md5()
@@ -115,24 +124,7 @@ def baseLine(factory, line, device, measurePoint, year, month, day):
 
     data, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
     data = data.iloc[:, device_index]
-
-    date = datetime.datetime(year, month, day)
-    date1 = date - datetime.timedelta(days=1)
-    date2 = date - datetime.timedelta(days=2)
-    date3 = date - datetime.timedelta(days=3)
-    date7 = date - datetime.timedelta(days=7)
-
-    data1, data2, data3, data7 = Tool.getData(data, date, 1), Tool.getData(data, date, 2), Tool.getData(data, date, 3), Tool.getData(data, date, 7)
-
-    res = (data1 + data2 + data3 + data7) / 4  # 该设备该日期的能耗基线
-
-    # plt.figure(figsize=(16, 8))
-    # plt.plot(res, label="能耗基线")
-    # plt.plot(np.array(data[str(date.year) + '-' + str(date.month) + '-' + str(date.day)]), label="实际值")
-    # plt.legend()
-    # plt.title('能耗基线与实际值对比')
-    baseValue = res
-    trueValue = np.array(data[str(date.year) + '-' + str(date.month) + '-' + str(date.day)])
+    baseValue, trueValue = baseline(data, year, month, day, day_point)
 
     resultDict = {'baseValue': list(baseValue),
                   'trueValue': list(trueValue)}
@@ -154,45 +146,75 @@ def profileFeatureFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]))
-    staticFeatures, dynamicFeatures = profileFeature(P_total.iloc[:, device_index], kmeans_hour, kmeans_day,
-                                                     labels_hour, labels_day)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), day_point=96)
+
+    temp8760 = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ShanghaiTemp8760.csv'), header=None)
+
+    staticFeatures, dynamicFeatures, tempload, temp = profileFeature(P_total.iloc[:, device_index], kmeans_hour, kmeans_day,
+                                                     labels_hour, labels_day, temp8760)
+
     staticFeatures[0]
-    staticFeatures[5] = str(staticFeatures[5])
+    staticFeatures[5] = str(staticFeatures[5])[1:-2]
     staticFeatures[7] = staticFeatures[7].tolist()
     staticFeatures[8] = staticFeatures[8].tolist()
     dynamicFeatures[0] = dynamicFeatures[0].tolist()
     dynamicFeatures[2] = dynamicFeatures[2].tolist()
     staticFeaturesObj = {
-        '最大值':staticFeatures[0],
-        '最小值':staticFeatures[1],
-        '中位数': staticFeatures[2],
-        '均值': staticFeatures[3],
-        '标准差': staticFeatures[4],
-        'fft频谱均值': staticFeatures[5],
-        'fft频谱标准差': staticFeatures[6],
-        '典型特征模式曲线（小时尺度）': staticFeatures[7],
-        '线性特征模式曲线（天尺度）': staticFeatures[8],
+        'maxv':staticFeatures[0],
+        'minv':staticFeatures[1],
+        'median': staticFeatures[2],
+        'avg': staticFeatures[3],
+        'standard': staticFeatures[4],
+        'fftavg': staticFeatures[5],
+        'fftstandard': staticFeatures[6],
+        'featurelineh': staticFeatures[7], #典型特征模式曲线（小时尺度）
+        'linearfeaturelined': staticFeatures[8], #线性特征模式曲线（天尺度）
     }
     dynamicFeaturesObj = {
-        '基于聚类结果的马尔科夫转移矩阵（小时尺度）':dynamicFeatures[0],
-        '行为信息熵（小时尺度）':dynamicFeatures[1],
-        '基于聚类结果的科尔科夫转移矩阵（天尺度）':dynamicFeatures[2],
-        '行为信息熵（天尺度）':dynamicFeatures[3]
+        'transfermatrixh':dynamicFeatures[0], #基于聚类结果的马尔科夫转移矩阵（小时尺度）
+        'entropyh':dynamicFeatures[1],
+        'transfermatrixd':dynamicFeatures[2], #基于聚类结果的科尔科夫转移矩阵（天尺度）
+        'entropyd':dynamicFeatures[3]
     }
-    resultDict = {'静态特性': staticFeaturesObj, '动态特性': dynamicFeaturesObj}
+    resultDict = {'static': staticFeaturesObj, 'dynamic': dynamicFeaturesObj, "load": tempload.tolist(), "temp": temp.tolist()}
 
     try:
         resultJson = json.dumps(resultDict,ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
-    print(len(resultJson))
 
-    sql = "insert into profileFeature (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
+    sql = "insert into profilefeature (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)
 
-def olapSlice(totalData,deviceList,metricList,user,device,timeRange,metric,collect:list,method):
-    pass
+def olapSlice(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, rotate = None):
+    totalData, deviceList, metricList = Tool.olapData(timeRange)
+    print(len(totalData))
+    dataSlice = pd.DataFrame()
+    if timeRange == None and metric == None and groups == None:
+        # 1.选定[用户+设备]切片
+        dataSlice = Slice(totalData, deviceList, metricList, user, device)
+    elif timeRange != None and metric == None and groups == None:
+        # 2.选定[用户+设备+时间段]切块
+        dataSlice = Slice(totalData, deviceList, metricList, user, device, timeRange)
+    elif timeRange != None and metric != None and groups == None:
+        # 3.选定[用户+设备+时间段+属性]切块
+        dataSlice = Slice(totalData, deviceList, metricList, user, device, timeRange, metric)
+    elif timeRange != None and metric != None and groups != None:
+        dataSlice = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, groups, agg)
 
-def olapDrill():
-    pass
+    print("slice")
+    if rotate == None:
+        dataSlice.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slice.csv'))
+    return dataSlice
+
+
+def olapDrill(user=None, device=None, timeRange=None, metric=None,timeMode = 0,zoneMode = 0):
+
+    totalData, deviceList, metricList = Tool.olapData(timeRange)
+    dataDrill = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, timeMode, zoneMode)
+    print("drill")
+    dataDrill.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "drill.csv"))
+    return
+def olapRotate(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None):
+    data = olapSlice(user, device, timeRange, metric,groups, agg, 1)
+    data.T.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "rotate.csv"))

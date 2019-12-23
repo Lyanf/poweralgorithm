@@ -79,7 +79,9 @@ class Tool:
         # db = pymysql.connect(host=cls.SQL_HOST, user="root", password="dclab", db="powersystem")
         # 使用 cursor() 方法创建一个游标对象 cursor
         db = Tool.getSQLEngine();
+        db.setencoding('utf-8')
         cursor = db.cursor()
+
         # 使用 execute()  方法执行 SQL 查询，目的是把算出的结果进行保存，方便后面用户查到
         cursor.execute("SET character.literal.as.string=TRUE;")
         cursor.execute(sql)
@@ -170,11 +172,11 @@ class Tool:
             sql += ",max(case meterid when '" + df.iloc[i].values[0] + "' then culunmvalue else 0 end) as '" + \
                    df.iloc[i].values[0] + "'"
         sql += " from rtdata WHERE metercolumn = '" + measurePoint + "' and customerid = " + line +"  group by regdate)"
-        originDataFrame = pd.read_sql(sql, Tool.getSQLEngine())
-
+        originDataFrame = pd.read_sql(sql, Tool.getSQLEngine(), "timestamps")
+        indexedDataFrame = originDataFrame
         # print(allSQL)
         # originDataFrame = pd.read_sql(allSQL, SQLEngine)
-        indexedDataFrame = originDataFrame.set_index("timestamps")
+        # indexedDataFrame = originDataFrame.set_index("timestamps")
         indexedDataFrame.index = pd.to_datetime(indexedDataFrame.index)
         indexedDataFrame = indexedDataFrame.sort_index()
 
@@ -196,56 +198,58 @@ class Tool:
 
 
     @staticmethod
-    def getData(data, date, delta):
+    def getData(data, date, delta,day_point):
         date -= datetime.timedelta(days=delta)
         dateStr = str(date.year) + '-' + "%0.2d"%(date.month)+ '-' + "%0.2d"%(date.day)
+        # dateStr = str(date.year) + '-' + str(date.month) + '-' + str(date.day)
         res = data[dateStr]
         count = 0
-        while len(res) != 480:
+        while len(res) != day_point:
             date -= datetime.timedelta(days=1)
             dateStr = str(date.year) + '-' + "%0.2d"%(date.month)+ '-' + "%0.2d"%(date.day)
+            # dateStr = str(date.year) + '-' + str(date.month) + '-' + str(date.day)
             res = data[dateStr]
             count += 1
             if count > 10:
                 return 0
         return np.array(res)
 
-    @staticmethod
-    def olapReadDataBySQL(dataDir):
-        fileList = os.listdir(dataDir)
-        res = pd.DataFrame()
-        for file in fileList:
-            fileDir = dataDir + file
-            data = pd.read_excel(fileDir, header=1, index_col=0)
-            data.index = pd.to_datetime(data.index)
-            data['date'] = [datetime.datetime.strftime(x, '%Y-%m-%d') for x in data.index]
-            data['month'] = [x.month for x in data.index]
-            data['device'] = file
-            data['user'] = "常州天和印染有限公司"
-            res = res.append(data)
-        res['time'] = res.index
-        metricList = list(res.columns)
-        metricList.remove('user')
-        metricList.remove('month')
-        metricList.remove('date')
-        metricList.remove('device')
-        metricList.remove('time')
-        return res, fileList, metricList
+    # @staticmethod
+    # def olapReadDataBySQL(dataDir):
+    #     fileList = os.listdir(dataDir)
+    #     res = pd.DataFrame()
+    #     for file in fileList:
+    #         fileDir = dataDir + file
+    #         data = pd.read_excel(fileDir, header=1, index_col=0)
+    #         data.index = pd.to_datetime(data.index)
+    #         data['date'] = [datetime.datetime.strftime(x, '%Y-%m-%d') for x in data.index]
+    #         data['month'] = [x.month for x in data.index]
+    #         data['device'] = file
+    #         data['user'] = "常州天和印染有限公司"
+    #         res = res.append(data)
+    #     res['time'] = res.index
+    #     metricList = list(res.columns)
+    #     metricList.remove('user')
+    #     metricList.remove('month')
+    #     metricList.remove('date')
+    #     metricList.remove('device')
+    #     metricList.remove('time')
+    #     return res, fileList, metricList
 
     @staticmethod
-    def translateTable():
+    def translateTable(timeRange: list = None):
         SQLEngine = Tool.getSQLEngine()
         sql = "SELECT distinct metercolumn FROM rtdata"
         metercolumnlist = SQLEngine.cursor().execute(sql).fetchall()
-        sqltable = "select regdate as timestamps, customerid as factory, customerid AS line,meterid AS device"
+        sqltable = "select regdate as timestamps, customerid as factory, meterid AS device"
         for m in metercolumnlist:
         	sqltable =  sqltable + ", max(case metercolumn when '" +m[0] + "' then culunmvalue else 0 end) as " + m[0]
-        sqltable = sqltable + " from rtdata group by regdate,customerid ,meterid"
+        sqltable = sqltable + " from rtdata "
+        if timeRange != None:
+            sqltable  = sqltable + " where regdate > DATE('" + timeRange[0] + "') AND regdate <= DATE('" + timeRange[1] + "') "
+        sqltable = sqltable + " group by regdate,customerid ,meterid"
         sqltable = " (" +sqltable +") "
-        # print(sqltable)
-        # daf = pd.read_sql("select timestamps from "  + sqltable + " WHERE timestamps > DATE('" + starttime +"') AND timestamps < DATE('"+ endtime+"')" ,SQLEngine)
-        # for i in range(len(daf)):
-        #     print(daf.iloc[i].values)
+
         return sqltable
 
     @staticmethod
@@ -253,11 +257,30 @@ class Tool:
         SQLEngine = Tool.getSQLEngine()
         sql = "SELECT distinct meterid FROM rtdata"
         meteridlist = SQLEngine.cursor().execute(sql).fetchall()
-        return meteridlist
+        mlist = [i[0] for i in meteridlist]
+        SQLEngine.close()
+        return mlist
 
     @staticmethod
     def getMeasurePoint():
         SQLEngine = Tool.getSQLEngine()
         sql = "SELECT distinct metercolumn FROM rtdata"
         metercolumnlist = SQLEngine.cursor().execute(sql).fetchall()
-        return metercolumnlist
+        mlist = [i[0] for i in metercolumnlist]
+        SQLEngine.close()
+        return mlist
+
+    @staticmethod
+    def olapData(timeRange: list = None):
+        devicelist = Tool.getDevice()
+        metriclist = Tool.getMeasurePoint()
+        data = pd.read_sql(Tool.translateTable(timeRange), Tool.getSQLEngine(), index_col='timestamps')
+        data.index = pd.to_datetime(data.index)
+        column = ['user','device']
+        column.extend(metriclist)
+        data.columns = column
+        data['date'] = [datetime.datetime.strftime(x, '%Y-%m-%d') for x in data.index]
+        data['month'] = [x.month for x in data.index]
+
+        data['time'] = data.index
+        return data, devicelist, metriclist
