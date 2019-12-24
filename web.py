@@ -100,7 +100,7 @@ class ProfileFeature(Resource):
 class OlapSlice(Resource):
     def post(self):
         js:dict = request.json
-        user =  js.get('factory')
+        user = js.get('factory')
         device = js.get('device')
         timeRange = js.get('timeRange')
         metric = js.get('measurePoint')
@@ -154,7 +154,7 @@ class OlapRotate(Resource):
         user = js.get('factory')
         device = js.get('device')
         timeRange = js.get('timeRange')
-        metric = js.get('metric')
+        metric = js.get('measurePoint')
         group = js.get('group')
         agg = js.get('agg')
 

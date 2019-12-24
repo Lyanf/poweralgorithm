@@ -146,9 +146,9 @@ def profileFeatureFunc(factory, line, device, measurePoint):
     parameterHash = md.hexdigest()
 
     P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), day_point=96)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), 96)
 
-    temp8760 = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ShanghaiTemp8760.csv'), header=None)
+    temp8760 = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ShanghaiTemp8760.csv'), header=None, sep="[;,]", engine='python')
 
     staticFeatures, dynamicFeatures, tempload, temp = profileFeature(P_total.iloc[:, device_index], kmeans_hour, kmeans_day,
                                                      labels_hour, labels_day, temp8760)

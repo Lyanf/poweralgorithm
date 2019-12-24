@@ -189,12 +189,12 @@ def profileFeature(data, kmeans_hour, kmeans_day, labels_hour, labels_day, temp8
 
 def getData(data, date, delta, day_point):
     date -= datetime.timedelta(days=delta)
-    dateStr = str(date.year) + '-' + str(date.month) + '-' + str(date.day)
+    dateStr = str(date.year) + '-' + "%0.2d"%(date.month) + '-' + "%0.2d"%(date.day)
     res = data[dateStr]
     count = 0
     while len(res) != day_point:
         date -= datetime.timedelta(days=1)
-        dateStr = str(date.year) + '-' + str(date.month) + '-' + str(date.day)
+        dateStr = str(date.year) + '-' + "%0.2d"%(date.month) + '-' + "%0.2d"%(date.day)
         res = data[dateStr]
         count += 1
         if count > 10:
