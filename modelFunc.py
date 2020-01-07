@@ -186,9 +186,9 @@ def profileFeatureFunc(factory, line, device, measurePoint):
     sql = "insert into profilefeature (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
     Tool.excuteSQL(sql)
 
-def olapSlice(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, rotate = None):
+def olapSlice(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, rotate = None, parameterHash=None):
     totalData, deviceList, metricList = Tool.olapData(timeRange)
-    print(len(totalData))
+
     dataSlice = pd.DataFrame()
     if timeRange == None and metric == None and groups == None:
         # 1.选定[用户+设备]切片
@@ -203,18 +203,128 @@ def olapSlice(user = None,device  = None,timeRange  = None, metric  = None, grou
         dataSlice = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, groups, agg)
 
     print("slice")
+
     if rotate == None:
-        dataSlice.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'slice.csv'))
+        resultJson = getRe(dataSlice)
+        sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (parameterHash, resultJson)
+        Tool.excuteSQL(sql)
+        # dataSlice.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), parameterHash + '.csv'))
     return dataSlice
 
 
-def olapDrill(user=None, device=None, timeRange=None, metric=None,timeMode = 0,zoneMode = 0):
+def olapDrill(user=None, device=None, timeRange=None, metric=None,timeMode = 0,zoneMode = 0, hashname=None):
 
     totalData, deviceList, metricList = Tool.olapData(timeRange)
     dataDrill = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, timeMode, zoneMode)
     print("drill")
-    dataDrill.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "drill.csv"))
+    resultJson = getRe(dataDrill)
+
+    sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (hashname, resultJson)
+    Tool.excuteSQL(sql)
+    # dataDrill.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), hashname+".csv"))
     return
-def olapRotate(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None):
+
+def olapRotate(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, hashname=None):
     data = olapSlice(user, device, timeRange, metric,groups, agg, 1)
-    data.T.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "rotate.csv"))
+    data = data.T
+    resultJson = getRe(data)
+
+    sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (hashname, resultJson)
+    Tool.excuteSQL(sql)
+    # data.T.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), hashname+".csv"))
+
+def getRe(datas):
+    content = []
+    plot1 = {'x': [], 'y': {}}
+    data = datas
+    if len(data.index.names) > 1:
+        l = len(data.index.levels)
+        for y in range(len(data.index.codes[0])):
+            tmp = ""
+            tmpc = {}
+            for x in range(l):
+
+                if not isinstance(data.index.levels[x][data.index.codes[x][y]], str):
+                    tmp += str(data.index.levels[x][data.index.codes[x][y]]) + " "
+                    tmpc[data.index.names[x]] = str(data.index.levels[x][data.index.codes[x][y]])
+                    # tmp += time.strftime("%Y-%m-%d %H:%M:%S", dataSlice7.index.levels[x][dataSlice7.index.codes[x][y]]) + " "
+                else:
+                    tmp += data.index.levels[x][data.index.codes[x][y]] + " "
+                    tmpc[data.index.names[x]] = data.index.levels[x][data.index.codes[x][y]]
+            content.append(tmpc)
+            plot1['x'].append(tmp)
+
+        for x in data.columns.values.tolist():
+            plot1['y'][x] = data.loc[:, x].tolist()
+    else:
+        plot1['x'] = data.index.tolist()
+        for x in plot1['x']:
+            tmpc = {}
+            tmpc[data.index.name] = x
+            content.append(tmpc)
+        for i in range(data.shape[1]):
+            tmp = data.iloc[:, i]
+            name = ""
+            for j in tmp.name:
+                if not isinstance(j, str):
+                    name += str(j) + " "
+                else:
+                    name += j + " "
+            plot1['y'][name] = tmp.values.tolist()
+
+    header = []
+    for x in data.index.names:
+        tmp = {}
+        tmp['prop'] = x
+        tmp['label'] = x
+        header.append(tmp)
+    for x in data.columns.values.tolist():
+        tmp = {}
+        tmp['prop'] = x
+        tmp['label'] = x
+        header.append(tmp)
+
+    nl = len(data.index.names)
+    for l in range(len(data.values.tolist())):
+        for k in range(len(data.values.tolist()[l])):
+            content[l][header[k + nl]['prop']] = data.values.tolist()[l][k]
+
+    plot2 = {'x': [], 'y': {}}
+    data = datas.T
+    if len(data.index.names) > 1:
+        l = len(data.index.levels)
+        for y in range(len(data.index.codes[0])):
+            tmp = ""
+
+            for x in range(l):
+
+                if not isinstance(data.index.levels[x][data.index.codes[x][y]], str):
+                    tmp += str(data.index.levels[x][data.index.codes[x][y]]) + " "
+
+                else:
+                    tmp += data.index.levels[x][data.index.codes[x][y]] + " "
+            plot2['x'].append(tmp)
+
+        for x in data.columns.values.tolist():
+            plot2['y'][x] = data.loc[:, x].tolist()
+    else:
+        plot2['x'] = data.index.tolist()
+
+        for i in range(data.shape[1]):
+            tmp = data.iloc[:, i]
+            name = ""
+            for j in tmp.name:
+                if not isinstance(j, str):
+                    name += str(j) + " "
+                else:
+                    name += j + " "
+            plot2['y'][name] = tmp.values.tolist()
+
+
+
+    resultDict = {'plot1': plot1, 'plot2': plot2, "header": header, "content": content}
+    try:
+        resultJson = json.dumps(resultDict, ensure_ascii=False)
+    except Exception as e:
+        e.with_traceback()
+    return resultJson

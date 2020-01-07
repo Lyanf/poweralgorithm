@@ -106,6 +106,8 @@ class OlapSlice(Resource):
         metric = js.get('measurePoint')
         group = js.get('group')
         agg = js.get('agg')
+        parameterHash = js.get('hashname')
+
         if len(device) == 0:
             device = None
         if len(timeRange) == 0:
@@ -120,7 +122,7 @@ class OlapSlice(Resource):
         print(metric)
         print(group)
         print(agg)
-        dataSlice7 = olapSlice(user, device, timeRange, metric,group, agg)
+        dataSlice = olapSlice(user, device, timeRange, metric,group, agg, parameterHash = parameterHash)
 
 
 class OlapDrill(Resource):
@@ -132,6 +134,7 @@ class OlapDrill(Resource):
         metric = js.get('measurePoint')
         timeMode = js.get('timeMode')
         zoneMode = js.get('zoneMode')
+        hashname = js.get('hashname')
         if len(user) == 0:
             user = None
         if len(device) == 0:
@@ -145,7 +148,7 @@ class OlapDrill(Resource):
         print(zoneMode)
         print(timeRange)
         print(timeMode)
-        dataDrill1 = olapDrill(user, device, timeRange, metric, timeMode, zoneMode)
+        dataDrill1 = olapDrill(user, device, timeRange, metric, timeMode, zoneMode,hashname=hashname)
 
 
 class OlapRotate(Resource):
@@ -157,8 +160,8 @@ class OlapRotate(Resource):
         metric = js.get('measurePoint')
         group = js.get('group')
         agg = js.get('agg')
-
-        rotate = olapRotate(user, device, timeRange, metric,group, agg)
+        hashname = js.get('hashname')
+        rotate = olapRotate(user, device, timeRange, metric,group, agg, hashname=hashname)
 
 
 class Test(Resource):

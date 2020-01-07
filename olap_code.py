@@ -6,7 +6,7 @@ import os, datetime
 import matplotlib.pyplot as plt
 from matplotlib.pylab import style
 from Tool import Tool
-
+import time
 style.use('ggplot')
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
@@ -136,29 +136,32 @@ if __name__ == "__main__":
     totalData, deviceList, metricList = Tool.olapData()
     user = [11]
     device = ['100001','100002']
-    timeRange = ['2018-12-31', '2019-01-04']
+    timeRange = ['2019-02-01', '2019-03-02']
     metric = ['BV','AA']
     '''切片和切块'''
     # 1.选定[用户+设备]切片
-    # dataSlice1 = Slice(totalData, deviceList, metricList, user, device)
+    # dataSlice7 = Slice(totalData, deviceList, metricList, user, device)
     # # 2.选定[用户+设备+时间段]切块
     # dataSlice2 = Slice(totalData, deviceList, metricList, user, device, timeRange)
     # # 3.选定[用户+设备+时间段+属性]切块
-    # dataSlice3 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric)
+    # dataSlice7 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric)
     # # 4.选定[用户+设备+时间段+属性]切块+按用户聚合[求和/求平均]
     # dataSlice4 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, ['date'], 'sum')
     # # 5.选定[用户+设备+时间段+属性]切块+按天聚合[求和/求平均]
     # dataSlice5 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, ['date'], 'sum')
     # # 6.选定[用户+设备+时间段+属性]切块+按设备聚合[求和/求平均]
-    # dataSlice6 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, ['device'], 'mean')
+    dataSlice7 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, ['device'], 'mean')
     # # 7.选定[用户+设备+时间段+属性]切块+按[设备+天]聚合[求和/求平均]
-    dataSlice7 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, ['device', 'date'], 'sum')
+    # dataSlice7 = Slice(totalData, deviceList, metricList, user, device, timeRange, metric, ['device', 'date'], 'sum')
     dataSlice7.to_csv('dataSlice.csv')
-    print(dataSlice7)
+    # print(dataSlice7)
     # # dataSlice1.to_csv('slice1.csv')
+    print(dataSlice7.index)
+    print()
+
     # # 对聚合后数据做柱状图示例
-    # dataSlice5.T.plot(kind='bar')
-    # dataSlice6.plot(kind='bar')
+    # dataSlice7.T.plot(kind='bar')
+    # dataSlice7.plot(kind='bar')
     #
     # '''钻取：上钻or下钻'''
     # # 根据[用户+设备+时间段+属性]切块+选定时空维度的粒度进行上钻/下钻
@@ -174,7 +177,9 @@ if __name__ == "__main__":
     # dataDrill5 = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, 1, 1)
     # # 粒度：月+用户
     # dataDrill6 = Drill(totalData, deviceList, metricList, user, device, timeRange, metric, 2, 1)
-    # dataDrill6.to_csv("datadrill6.csv")
+    # print(dataDrill2.index)
+    # print(isinstance(dataDrill2, MultiIndex))
+    # dataDrill2.to_csv("datadrill6.csv")
     #
 
     # # 对上钻后数据做柱状图示例
