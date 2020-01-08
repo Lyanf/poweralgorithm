@@ -129,7 +129,7 @@ class Tool:
         return
 
     @staticmethod
-    def getP_totalBySQL(factory, line, device, measurePoint):
+    def getP_totalBySQL(factory, line, device, measurePoint, timeRange = None):
         # SQLEngine = Tool.getSQLEngine()
         # deviceList = []
         # # for i in pd.read_sql("select distinct device from datas where factory='%s'" % (factory), SQLEngine).values:
@@ -171,7 +171,10 @@ class Tool:
                 reloc = i + 1
             sql += ",max(case meterid when '" + df.iloc[i].values[0] + "' then culunmvalue else 0 end) as '" + \
                    df.iloc[i].values[0] + "'"
-        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "' and customerid = " + line +"  group by regdate)"
+        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "' and customerid = " + line
+        if timeRange != None:
+            sql  = sql + " and regdate > DATE('" + timeRange[0] + "') AND regdate <= DATE('" + timeRange[1] + "') "
+        sql += " group by regdate)"
         originDataFrame = pd.read_sql(sql, Tool.getSQLEngine(), "timestamps")
         indexedDataFrame = originDataFrame
         # print(allSQL)

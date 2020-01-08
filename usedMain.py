@@ -184,8 +184,8 @@ def profileFeature(data, kmeans_hour, kmeans_day, labels_hour, labels_day, temp8
     entropy_day = getEntropy(labels_day)  # 行为信息熵
     dynamicFeatures = [transmat_hour, entropy_hour, transmat_day, entropy_day]
 
-    tempload, temp = plotTempFeature(data, temp8760)
-    return staticFeatures, dynamicFeatures, tempload, temp
+    tempload, temp, scattertemp, scatterdataunique = plotTempFeature(data, temp8760)
+    return staticFeatures, dynamicFeatures, tempload, temp, scattertemp, scatterdataunique
 
 def getData(data, date, delta, day_point):
     date -= datetime.timedelta(days=delta)
@@ -225,22 +225,22 @@ def plotTempFeature(data, temp8760):
     dd_begin = datetime.datetime.strptime(begin, "%Y-%m-%d %H")
     index_begin = (dd_begin.timetuple().tm_yday - 1) + dd_begin.timetuple().tm_hour
     temp = temp8760[index_begin:index_begin + data_unique.shape[0]].squeeze()
-    plt.figure(figsize=(16, 8))
-    plt.scatter(temp, data_unique)
-    plt.title('负荷温度特性')
-    plt.xlabel('温度(℃)')
-    plt.ylabel('负荷(KW)')
-
-    fig = plt.figure(figsize=(16, 8))
-    ax = fig.add_subplot(111)
-    lns1 = ax.plot(list(range(200)), data_unique[:200], label='负荷', color='red')
-    ax2 = plt.twinx()
-    lns2 = ax2.plot(list(range(200)), temp[:200], label='温度', color='blue')
-    lns = lns1 + lns2
-    labs = [l.get_label() for l in lns]
-    ax.legend(loc=0)
-    ax.legend(lns, labs, loc=0)
-    return data_unique[:200], temp[:200]
+    # plt.figure(figsize=(16, 8))
+    # plt.scatter(temp, data_unique)
+    # plt.title('负荷温度特性')
+    # plt.xlabel('温度(℃)')
+    # plt.ylabel('负荷(KW)')
+    #
+    # fig = plt.figure(figsize=(16, 8))
+    # ax = fig.add_subplot(111)
+    # lns1 = ax.plot(list(range(200)), data_unique[:200], label='负荷', color='red')
+    # ax2 = plt.twinx()
+    # lns2 = ax2.plot(list(range(200)), temp[:200], label='温度', color='blue')
+    # lns = lns1 + lns2
+    # labs = [l.get_label() for l in lns]
+    # ax.legend(loc=0)
+    # ax.legend(lns, labs, loc=0)
+    return data_unique[:200], temp[:200], temp, data_unique
 
 # @click.command()
 # @click.option('--name',default='三相总有功功率')
