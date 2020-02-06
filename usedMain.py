@@ -32,31 +32,39 @@ def phqCluster(data):
     return kmeans.cluster_centers_, kmeans.labels_
 
 
-def pearsonLagSingle(P_total, i, j, timelag):  # 时滞-timelag~timelag间的最大pearson
+def pearsonLagSingle(P_device, P_j, timelag):  # 时滞-timelag~timelag间的最大pearson
     if timelag < 0:
         timelag = -timelag
-    maxPearson = pearsonr(P_total.iloc[:, i], P_total.iloc[:, j])[0]
+    maxPearson = pearsonr(P_device, P_j)[0]
     for lag in range(1, timelag + 1):
-        cand1 = pearsonr(P_total.iloc[lag:, i], P_total.iloc[:-lag, j])[0]
-        cand2 = pearsonr(P_total.iloc[:-lag, i], P_total.iloc[lag:, j])[0]
+        cand1 = pearsonr(P_device[lag:], P_j[:-lag])[0]
+        cand2 = pearsonr(P_device[:-lag], P_j[lag:])[0]
         maxPearson = max(maxPearson, cand1, cand2)
     return maxPearson
 
 
+
 # 求i设备的最相关的N个设备(以带时滞的相关系数pearsonLag为例，若需加快可直接降低timelag)
-def correlation(P_total, i, N, timelag=50):
+def correlation(P_total, device_index, N, day_point):
     # pearson = P_total.corr()
     # cov = P_total.cov()
+    if device_index == -1:
+        P_device = P_total.apply(lambda x: x.sum(), axis=1)
+    else:
+        P_device = P_total.iloc[:, device_index]
+    timelag = 50
     device_pearsonLag = [-1 for j in range(P_total.shape[1])]
     for j in range(P_total.shape[1]):
-        if j == i:
+        if j == device_index:
             continue
-        device_pearsonLag[j] = pearsonLagSingle(P_total, i, j, timelag)
+        P_j = P_total.iloc[:, j]
+        device_pearsonLag[j] = pearsonLagSingle(P_device, P_j, timelag)
 
     if N >= len(device_pearsonLag):
         N = len(device_pearsonLag) - 1
     device_pearsonLag = pd.Series(data=device_pearsonLag, index=P_total.columns)
     device_pearsonLag.sort_values(ascending=False, inplace=True)
+
 
     # plt.figure(figsize=(16, 8))
     # plt.plot(P_total.iloc[:, i], label="forecast device")
@@ -72,8 +80,11 @@ def correlation(P_total, i, N, timelag=50):
 def train_forecast(P_total, corr_device, device_index,day_point):
 
     # day_point = 480  # 一天为480个数据点
-    P_forecast = P_total.iloc[:, device_index]
 
+    if device_index == -1:  # 对用户分析
+        P_forecast = P_total.apply(lambda x: x.sum(), axis=1)
+    else:
+        P_forecast = P_total.iloc[:, device_index]
     y_total = P_forecast[day_point * 7:].reset_index(drop=True)
     X_total = pd.DataFrame(index=range(len(y_total)))
     timeStamp = pd.Series(P_forecast[day_point * 7:].index)
@@ -146,7 +157,11 @@ def train_forecast(P_total, corr_device, device_index,day_point):
     return a.tolist(), b.tolist()
 
 
-def cluster(data, day_point):
+def cluster(P_total, device_index, day_point):
+    if device_index == -1:  # 对用户分析
+        data = np.array(P_total.apply(lambda x: x.sum(), axis=1))
+    else:
+        data = np.array(P_total.iloc[:, device_index])
     hour_point = day_point // 24
     data_hour = data[:len(data) // hour_point * hour_point].reshape([-1, hour_point])
     data_day = data[:len(data) // day_point * day_point].reshape([-1, day_point])
@@ -169,7 +184,11 @@ def cluster(data, day_point):
     # return hourList,dayList,kmeans_hour,labels_hour,kmeans_day,labels_day
 
 
-def profileFeature(data, kmeans_hour, kmeans_day, labels_hour, labels_day, temp8760):
+def profileFeature(P_total, device_index, kmeans_hour, kmeans_day, labels_hour, labels_day, temp8760):
+    if device_index == -1:  # 对用户分析
+        data = P_total.apply(lambda x: x.sum(), axis=1)
+    else:
+        data = P_total.iloc[:, device_index]
     staticFeatures = [data.max(), data.min(), data.median(), data.mean(), data.std(), np.mean(np.fft.fft(data)),
                       np.std(np.fft.fft(data)), kmeans_hour, kmeans_day]
 
@@ -187,8 +206,8 @@ def profileFeature(data, kmeans_hour, kmeans_day, labels_hour, labels_day, temp8
     tempload, temp, scattertemp, scatterdataunique = plotTempFeature(data, temp8760)
     return staticFeatures, dynamicFeatures, tempload, temp, scattertemp, scatterdataunique
 
-def getData(data, date, delta, day_point):
-    date -= datetime.timedelta(days=delta)
+def getData(data, date, day_point):
+    # date -= datetime.timedelta(days=delta)
     dateStr = str(date.year) + '-' + "%0.2d"%(date.month) + '-' + "%0.2d"%(date.day)
     res = data[dateStr]
     count = 0
@@ -202,13 +221,24 @@ def getData(data, date, delta, day_point):
     return np.array(res)
 
 
-def baseline(data, year, month, day, day_point):
+def baseline(P_total,device_index, year, month, day, day_point):
+    if device_index == -1:  # 对用户分析
+        data = P_total.apply(lambda x: x.sum(), axis=1)
+    else:
+        data = P_total.iloc[:, device_index]
     date = datetime.datetime(year, month, day)
-    data1, data2, data3, data7 = getData(data, date, 1, day_point), getData(data, date, 2, day_point), getData(data,
-                                                                                                               date, 3,
+    date1 = date - datetime.timedelta(days=1)
+    date2 = date - datetime.timedelta(days=2)
+    date3 = date - datetime.timedelta(days=3)
+    date7 = date - datetime.timedelta(days=7)
+    if date7 < P_total.index[0]:
+        raise Exception("Error: the gap between selected date with the start date should > 7 days")
+
+    data1, data2, data3, data7 = getData(data, date1, day_point), getData(data, date2, day_point), getData(data,
+                                                                                                               date3,
                                                                                                                day_point), getData(
-        data, date, 7, day_point)
-    # print(data1,data2, data3, data7)
+        data, date7, day_point)
+
     res = (data1 + data2 + data3 + data7) / 4  # 该设备该日期的能耗基线
 
     # plt.figure(figsize=(16, 8))
@@ -219,6 +249,7 @@ def baseline(data, year, month, day, day_point):
     return res, np.array(data[str(date.year) + '-' + str(date.month) + '-' + str(date.day)])
 
 def plotTempFeature(data, temp8760):
+
     data.index = data.index.strftime("%Y-%m-%d %H")
     data_unique = data[~data.index.duplicated()]
     begin = data_unique.index[0]

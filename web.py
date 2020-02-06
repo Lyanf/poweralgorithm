@@ -1,14 +1,7 @@
 from flask import Flask, request
 from flask_restful import Resource, Api
-import hashlib
-import pymysql
-import threading
-import json
-import os
-from usedMain import oldMain, correlation, train_forecast
 from modelFunc import predictRealData, predictFunc, correlationFunc, clusterFunc, baseLine,profileFeatureFunc, olapSlice, olapDrill, olapRotate
-from olap_code import Slice
-from olap_code import Drill
+
 
 from Tool import Tool
 
@@ -20,40 +13,36 @@ allThread = []
 class PredictRealData(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
         device = request.json['device']
         measurePoint = request.json['measurePoint']
         year = int(request.json['year'])
         month = int(request.json['month'])
         day = int(request.json['day'])
-        allString = factory + line + device + measurePoint
-        print(allString)
-        assert isinstance(allString, str)
 
-        print(factory, line, device, measurePoint)
-        return predictRealData(factory, line, device, measurePoint, year, month, day)
+        print(factory, device, measurePoint)
+        return predictRealData(factory, device, measurePoint, year, month, day)
 
 
 class Predict(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
         start = request.json['start']
         end = request.json['end']
         hashname = request.json['hashname']
 
-        print(factory, line, device, measurePoint)
+        print(factory, device, measurePoint)
 
         try:
-            hashstr = predictFunc(factory, line, device, measurePoint, [start, end], hashname)
+            hashstr = predictFunc(factory, device, measurePoint, [start, end], hashname)
             re = {
                 "status": "success",
                 "msg": hashstr
             }
         except Exception as e:
-
+            print(e)
             re = {
                 "status": "error",
 
@@ -67,21 +56,21 @@ class Predict(Resource):
 class Correlation(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
         start = request.json['start']
         end = request.json['end']
         hashname = request.json['hashname']
-        print(factory, line, device, measurePoint, start)
+        print(factory, device, measurePoint, start)
         try:
-            hashstr = correlationFunc(factory, line, device, measurePoint, [start, end], hashname)
+            hashstr = correlationFunc(factory, device, measurePoint, [start, end], hashname)
             re = {
                 "status": "success",
                 "msg": hashstr
             }
         except Exception as e:
-
+            print(e)
             re = {
                 "status": "error",
             }
@@ -91,20 +80,22 @@ class Correlation(Resource):
 class Cluster(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
         start = request.json['start']
         end = request.json['end']
         hashname = request.json['hashname']
-        print(factory, line, device, measurePoint)
+        print(factory, device, measurePoint)
         try:
-            hashstr = clusterFunc(factory, line, device, measurePoint, [start, end], hashname)
+            hashstr = clusterFunc(factory, device, measurePoint, [start, end], hashname)
             re ={
                 "status": "success",
                 "msg": hashstr
             }
         except Exception as e:
+            print(e)
+
             re = {
                 "status": "error",
 
@@ -115,22 +106,23 @@ class Cluster(Resource):
 class BaseLine(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        print(factory, line, device, measurePoint)
+        print(factory, device, measurePoint)
         year = int(request.json['year'])
         month = int(request.json['month'])
         day = int(request.json['day'])
         hashname = request.json['hashname']
 
         try:
-            hashstr = baseLine(factory, line, device, measurePoint, year, month, day, hashname, 96)
+            hashstr = baseLine(factory, device, measurePoint, year, month, day, hashname, 96)
             re ={
                 "status": "success",
                 "msg": hashstr
             }
         except Exception as e:
+            print(e)
             re = {
                 "status": "error",
 
@@ -140,21 +132,22 @@ class BaseLine(Resource):
 class ProfileFeature(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
         start = request.json['start']
         end = request.json['end']
         hashname = request.json['hashname']
-        print(factory, line, device, measurePoint)
-
+        print(factory, device, measurePoint)
+        # hashstr = profileFeatureFunc(factory, device, measurePoint, [start, end], hashname)
         try:
-            hashstr = profileFeatureFunc(factory, line, device, measurePoint, [start, end], hashname)
+            hashstr = profileFeatureFunc(factory, device, measurePoint, [start, end], hashname)
             re ={
                 "status": "success",
                 "msg": hashstr
             }
         except Exception as e:
+            print(e)
             re = {
                 "status": "error",
 
@@ -193,6 +186,8 @@ class OlapSlice(Resource):
                 "msg": hashstr
             }
         except Exception as e:
+            print(e)
+
             re = {
                 "status": "error",
 
@@ -232,6 +227,8 @@ class OlapDrill(Resource):
                 "msg": hashstr
             }
         except Exception as e:
+            print(e)
+
             re = {
                 "status": "error",
 
@@ -256,6 +253,8 @@ class OlapRotate(Resource):
                 "msg": hashstr
             }
         except Exception as e:
+            print(e)
+
             re = {
                 "status": "error",
 

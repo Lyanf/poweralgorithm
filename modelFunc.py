@@ -13,8 +13,8 @@ from olap_code import Slice, Drill
 
 
 
-def predictRealData(factory, line, device, measurePoint, year, month, day):
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+def predictRealData(factory, device, measurePoint, year, month, day):
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint)
     P_total = P_total[year + '-' + month + '-' + day]
     day_point = 480  # 一天为480个数据点
     P_forecast = P_total.iloc[:, device_index]
@@ -23,16 +23,16 @@ def predictRealData(factory, line, device, measurePoint, year, month, day):
 
 
 # 完全自己做，并且把数据放到数据库里面
-def predictFunc(factory, line, device, measurePoint, timeRange, hashname):
+def predictFunc(factory, device, measurePoint, timeRange, hashname):
 
     resultFileName = hashname[0:15]
 
     # insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s',null)''' % (parameterHash, resultFileName)
     # Tool.excuteSQL(insertSQL)
 
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint, timeRange)
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
 
-    corr_device = correlation(P_total, device_index, 3)
+    corr_device = correlation(P_total, device_index, 3, 96)
     a, b = train_forecast(P_total, corr_device, device_index,96)
     lastResult = {'y_true': a, 'y_pred': b}
     jsonStr = json.dumps(lastResult)
@@ -43,10 +43,12 @@ def predictFunc(factory, line, device, measurePoint, timeRange, hashname):
     return hashname
 
 
-def correlationFunc(factory, line, device, measurePoint, timeRange, hashname):
-
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint, timeRange)
-    corr_device = correlation(P_total, device_index, 3)
+def correlationFunc(factory, device, measurePoint, timeRange, hashname):
+    if device == "-1":
+        P_total, device_index = Tool.getP_totalBySQL(-1, device, measurePoint, timeRange)
+    else:
+        P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
+    corr_device = correlation(P_total, device_index, 3, 96)
 
     addSelfDeviceCorrIndex = corr_device.index.tolist()
     addSelfDeviceCorrIndex.append(device)
@@ -71,11 +73,11 @@ def correlationFunc(factory, line, device, measurePoint, timeRange, hashname):
     Tool.excuteSQL(sql)
     return hashname
 
-def clusterFunc(factory, line, device, measurePoint, timeRange, hashname):
+def clusterFunc(factory, device, measurePoint, timeRange, hashname):
 
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint, timeRange)
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
 
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), 96)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(P_total, device_index, 96)
 
     hourList = kmeans_hour.tolist()
     dayList = kmeans_day.tolist()
@@ -94,11 +96,15 @@ def clusterFunc(factory, line, device, measurePoint, timeRange, hashname):
     Tool.excuteSQL(sql)
     return hashname
 
-def baseLine(factory, line, device, measurePoint, year, month, day, hashname, day_point = 96):
-
-    data, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    data = data.iloc[:, device_index]
-    baseValue, trueValue = baseline(data, year, month, day, day_point)
+def baseLine(factory, device, measurePoint, year, month, day, hashname, day_point = 96):
+    date = datetime.datetime(year, month, day)
+    start = date - datetime.timedelta(days=8)
+    end = date + datetime.timedelta(days=2)
+    print(start)
+    print(date)
+    data, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, [start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")])
+    # data, device_index = Tool.getP_totalBySQL(factory, device, measurePoint)
+    baseValue, trueValue = baseline(data, device_index, year, month, day, day_point)
 
     resultDict = {'baseValue': list(baseValue),
                   'trueValue': list(trueValue)}
@@ -112,15 +118,15 @@ def baseLine(factory, line, device, measurePoint, year, month, day, hashname, da
     Tool.excuteSQL(sql)
     return hashname
 
-def profileFeatureFunc(factory, line, device, measurePoint, timeRange, hashname):
+def profileFeatureFunc(factory, device, measurePoint, timeRange, hashname):
 
 
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint, timeRange)
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), 96)
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(P_total, device_index, 96)
 
     temp8760 = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ShanghaiTemp8760.csv'), header=None, sep="[;,]", engine='python')
 
-    staticFeatures, dynamicFeatures, tempload, temp, scattertemp, scatterdataunique = profileFeature(P_total.iloc[:, device_index], kmeans_hour, kmeans_day,
+    staticFeatures, dynamicFeatures, tempload, temp, scattertemp, scatterdataunique = profileFeature(P_total, device_index, kmeans_hour, kmeans_day,
                                                      labels_hour, labels_day, temp8760)
     scatter = []
     for i in range(len(scattertemp)):
@@ -271,6 +277,7 @@ def getRe(datas):
 
     plot2 = {'x': [], 'y': {}}
     data = datas.T
+
     if len(data.index.names) > 1:
         l = len(data.index.levels)
         for y in range(len(data.index.codes[0])):
@@ -293,6 +300,7 @@ def getRe(datas):
         for i in range(data.shape[1]):
             tmp = data.iloc[:, i]
             name = ""
+
             for j in tmp.name:
                 if not isinstance(j, str):
                     name += str(j) + " "
