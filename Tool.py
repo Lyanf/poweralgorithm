@@ -176,7 +176,6 @@ class Tool:
         if timeRange != None:
             sql = sql + " and regdate > DATE('" + timeRange[0] + "') AND regdate <= DATE('" + timeRange[1] + "') "
         sql += " group by regdate)"
-
         originDataFrame = pd.read_sql(sql, Tool.getSQLEngine(), "timestamps")
         indexedDataFrame = originDataFrame
         # print(allSQL)
@@ -191,7 +190,6 @@ class Tool:
         indexedDataFrame = indexedDataFrame.drop_duplicates()
         # deviceList.insert(0, device)
         indexedDataFrame.columns = deviceList
-
         del_list = []
         for i in range(indexedDataFrame.shape[1]):
             if max(indexedDataFrame.iloc[:, i]) - min(indexedDataFrame.iloc[:, i]) == 0:
@@ -201,14 +199,13 @@ class Tool:
 
         if device == "-1":
             return indexedDataFrame, -1
-        reloc = 0
+        reloc = -1
         for i in indexedDataFrame.columns.values.tolist():
             reloc += 1
             if i == device:
                 break
-        if reloc == 0:
+        if reloc <= 0 or reloc >= len(indexedDataFrame.columns.values.tolist()):
             raise Exception("所选设备在该测点数据异常")
-
         return indexedDataFrame, reloc
 
 

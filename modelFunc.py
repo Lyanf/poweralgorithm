@@ -74,11 +74,8 @@ def correlationFunc(factory, device, measurePoint, timeRange, hashname):
     return hashname
 
 def clusterFunc(factory, device, measurePoint, timeRange, hashname):
-
     P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
-
     kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(P_total, device_index, 96)
-
     hourList = kmeans_hour.tolist()
     dayList = kmeans_day.tolist()
     # print(dayList)
