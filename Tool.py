@@ -129,7 +129,7 @@ class Tool:
         return
 
     @staticmethod
-    def getP_totalBySQL(factory, line, device, measurePoint):
+    def getP_totalBySQL(factory, device, measurePoint, timeRange = None):
         # SQLEngine = Tool.getSQLEngine()
         # deviceList = []
         # # for i in pd.read_sql("select distinct device from datas where factory='%s'" % (factory), SQLEngine).values:
@@ -164,14 +164,18 @@ class Tool:
         df = pd.read_sql('SELECT distinct meterid FROM rtdata;', Tool.getSQLEngine())
         sql = "select * from (select regdate AS timestamps "
         deviceList = []
-        reloc = 0
+
         for i in range(len(df)):
             deviceList.append(df.iloc[i].values[0])
-            if (df.iloc[i].values[0] == device):
-                reloc = i + 1
+
             sql += ",max(case meterid when '" + df.iloc[i].values[0] + "' then culunmvalue else 0 end) as '" + \
                    df.iloc[i].values[0] + "'"
-        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "' and customerid = " + line +"  group by regdate)"
+        sql += " from rtdata WHERE metercolumn = '" + measurePoint + "'"
+        if factory != "-1":
+            sql += " and customerid = " + factory
+        if timeRange != None:
+            sql = sql + " and regdate > DATE('" + timeRange[0] + "') AND regdate <= DATE('" + timeRange[1] + "') "
+        sql += " group by regdate)"
         originDataFrame = pd.read_sql(sql, Tool.getSQLEngine(), "timestamps")
         indexedDataFrame = originDataFrame
         # print(allSQL)
@@ -192,8 +196,16 @@ class Tool:
                 del_list.append(i)
         indexedDataFrame.drop(indexedDataFrame.columns[del_list], axis=1, inplace=True)
         # 返回一个0是因为，原本的P_total需要一个device_index标记当前选择的是哪个设备
-        # 但是新方法这个设备一定是在第0列
 
+        if device == "-1":
+            return indexedDataFrame, -1
+        reloc = -1
+        for i in indexedDataFrame.columns.values.tolist():
+            reloc += 1
+            if i == device:
+                break
+        if reloc <= 0 or reloc >= len(indexedDataFrame.columns.values.tolist()):
+            raise Exception("所选设备在该测点数据异常")
         return indexedDataFrame, reloc
 
 

@@ -156,7 +156,9 @@ if __name__ == "__main__":
     dataSlice7.to_csv('dataSlice.csv')
     # print(dataSlice7)
     # # dataSlice1.to_csv('slice1.csv')
-    print(dataSlice7.index)
+    for x in dataSlice7.T.columns.values.tolist():
+        print(dataSlice7.T.loc[:, x].tolist())
+    print(dataSlice7.T.index.name)
     print()
 
     # # 对聚合后数据做柱状图示例

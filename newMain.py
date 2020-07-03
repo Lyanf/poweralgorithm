@@ -250,6 +250,7 @@ def plotTempFeature(data, temp8760):
     labs = [l.get_label() for l in lns]
     ax.legend(loc=0)
     ax.legend(lns, labs, loc=0)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -298,7 +299,7 @@ if __name__ == "__main__":
     # 功能三：以小时/天尺度对负荷数据进行聚类
     # 需要返回什么数据/模型可自行修改函数
     # print("—————————————————三、多时间尺度用能模式挖掘(图3图4)—————————————————————")
-    # kmeans_hour,labels_hour,kmeans_day,labels_day = cluster(np.array(P_total.iloc[:,device_index]), day_point)
+    kmeans_hour,labels_hour,kmeans_day,labels_day = cluster(np.array(P_total.iloc[:,device_index]), day_point)
     # print(kmeans_day)
     # 功能四：确定指定设备与日期的能耗基线
     # year, month, day = 2019, 3, 30
@@ -307,7 +308,7 @@ if __name__ == "__main__":
     # 功能五：求指定设备负荷曲线的行为画像特性
     # 静态特性staticFeatures:负荷曲线的max,min,中位数,均值,标准差,fft频谱均值,fft频谱标准差,典型特征模式曲线(小时尺度&天尺度);
     # 动态特性:基于聚类结果的马尔科夫转移矩阵、行为信息熵(小时尺度&天尺度);
-    # temp8760 = pd.read_csv('ShanghaiTemp8760.csv',header=None)
-    # staticFeatures,dynamicFeatures = profileFeature(P_total.iloc[:,device_index],kmeans_hour,kmeans_day,labels_hour,labels_day,temp8760)
+    temp8760 = pd.read_csv('ShanghaiTemp8760.csv',header=None)
+    staticFeatures,dynamicFeatures = profileFeature(P_total.iloc[:,device_index],kmeans_hour,kmeans_day,labels_hour,labels_day,temp8760)
 
 

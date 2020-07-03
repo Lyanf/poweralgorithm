@@ -13,8 +13,8 @@ from olap_code import Slice, Drill
 
 
 
-def predictRealData(factory, line, device, measurePoint, year, month, day):
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+def predictRealData(factory, device, measurePoint, year, month, day):
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint)
     P_total = P_total[year + '-' + month + '-' + day]
     day_point = 480  # 一天为480个数据点
     P_forecast = P_total.iloc[:, device_index]
@@ -23,45 +23,32 @@ def predictRealData(factory, line, device, measurePoint, year, month, day):
 
 
 # 完全自己做，并且把数据放到数据库里面
-def predictFunc(factory, line, device, measurePoint):
-    allString = factory + line + device + measurePoint
-    assert isinstance(allString, str)
-    md = hashlib.md5()
-    md.update(allString.encode("utf8"))
-    parameterHash = md.hexdigest()
-    resultFileName = parameterHash[0:15]
+def predictFunc(factory, device, measurePoint, timeRange, hashname):
+
+    resultFileName = hashname[0:15]
 
     # insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s',null)''' % (parameterHash, resultFileName)
     # Tool.excuteSQL(insertSQL)
 
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
 
-    corr_device = correlation(P_total, device_index, 3)
+    corr_device = correlation(P_total, device_index, 3, 96)
     a, b = train_forecast(P_total, corr_device, device_index,96)
     lastResult = {'y_true': a, 'y_pred': b}
     jsonStr = json.dumps(lastResult)
 
-    insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s','%s')''' % (parameterHash, resultFileName,jsonStr)
+    insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s','%s')''' % (hashname, resultFileName,jsonStr)
     # print(insertSQL)
     Tool.excuteSQL(insertSQL)
-    # updateSQL = "update sjtudb.algorithmresult set json='%s' where hash='%s'" % (jsonStr, parameterHash)
-    # Tool.excuteSQL(updateSQL)
-
-    # dirPath = os.path.join(Tool.sharedroot,"predict")
-    # if not os.path.exists(dirPath):
-    #     os.makedirs(dirPath)
-    # with open(os.path.join(dirPath, resultFileName + ".json"), "w") as f:
-    #     json.dump({'y_true': a, 'y_pred': b}, f)
+    return hashname
 
 
-def correlationFunc(factory, line, device, measurePoint):
-    allString = factory + line + device + measurePoint
-    assert isinstance(allString, str)
-    md = hashlib.md5()
-    md.update(allString.encode("utf8"))
-    parameterHash = md.hexdigest()
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    corr_device = correlation(P_total, device_index, 3)
+def correlationFunc(factory, device, measurePoint, timeRange, hashname):
+    if device == "-1":
+        P_total, device_index = Tool.getP_totalBySQL(-1, device, measurePoint, timeRange)
+    else:
+        P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
+    corr_device = correlation(P_total, device_index, 3, 96)
 
     addSelfDeviceCorrIndex = corr_device.index.tolist()
     addSelfDeviceCorrIndex.append(device)
@@ -82,21 +69,13 @@ def correlationFunc(factory, line, device, measurePoint):
     resultJson = json.dumps(resultDict, ensure_ascii=False)
 
 
-    sql = ''' insert into sjtudb.correlation values('%s','%s','%s') ''' % (parameterHash, resultJson, corrDataJson)
+    sql = ''' insert into sjtudb.correlation values('%s','%s','%s') ''' % (hashname, resultJson, corrDataJson)
     Tool.excuteSQL(sql)
+    return hashname
 
-
-def clusterFunc(factory, line, device, measurePoint):
-    allString = factory + line + device + measurePoint
-    assert isinstance(allString, str)
-    md = hashlib.md5()
-    md.update(allString.encode("utf8"))
-    parameterHash = md.hexdigest()
-
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), 96)
-
+def clusterFunc(factory, device, measurePoint, timeRange, hashname):
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(P_total, device_index, 96)
     hourList = kmeans_hour.tolist()
     dayList = kmeans_day.tolist()
     # print(dayList)
@@ -106,25 +85,23 @@ def clusterFunc(factory, line, device, measurePoint):
                   'dayList': dayList}
 
     try:
-
         resultJson = json.dumps(resultDict, ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
 
-    sql = "insert into clusterresult (hashstr,json)values ('%s', '%s')" % (parameterHash, resultJson)
+    sql = "insert into clusterresult (hashstr,json)values ('%s', '%s')" % (hashname, resultJson)
     Tool.excuteSQL(sql)
+    return hashname
 
-
-def baseLine(factory, line, device, measurePoint, year, month, day, day_point = 96):
-    allString = factory + line + device + measurePoint
-    assert isinstance(allString, str)
-    md = hashlib.md5()
-    md.update(allString.encode("utf8"))
-    parameterHash = md.hexdigest()
-
-    data, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    data = data.iloc[:, device_index]
-    baseValue, trueValue = baseline(data, year, month, day, day_point)
+def baseLine(factory, device, measurePoint, year, month, day, hashname, day_point = 96):
+    date = datetime.datetime(year, month, day)
+    start = date - datetime.timedelta(days=8)
+    end = date + datetime.timedelta(days=2)
+    print(start)
+    print(date)
+    data, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, [start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")])
+    # data, device_index = Tool.getP_totalBySQL(factory, device, measurePoint)
+    baseValue, trueValue = baseline(data, device_index, year, month, day, day_point)
 
     resultDict = {'baseValue': list(baseValue),
                   'trueValue': list(trueValue)}
@@ -133,25 +110,25 @@ def baseLine(factory, line, device, measurePoint, year, month, day, day_point = 
     except Exception as e:
         e.with_traceback()
 
-    sql = "insert into baseline (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
+    sql = "insert into baseline (hashstr,json)values ('%s','%s')" % (hashname, resultJson)
 
     Tool.excuteSQL(sql)
+    return hashname
+
+def profileFeatureFunc(factory, device, measurePoint, timeRange, hashname):
 
 
-def profileFeatureFunc(factory, line, device, measurePoint):
-    allString = factory + line + device + measurePoint
-    assert isinstance(allString, str)
-    md = hashlib.md5()
-    md.update(allString.encode("utf8"))
-    parameterHash = md.hexdigest()
-
-    P_total, device_index = Tool.getP_totalBySQL(factory, line, device, measurePoint)
-    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(np.array(P_total.iloc[:, device_index]), 96)
+    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
+    kmeans_hour, labels_hour, kmeans_day, labels_day = cluster(P_total, device_index, 96)
 
     temp8760 = pd.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ShanghaiTemp8760.csv'), header=None, sep="[;,]", engine='python')
 
-    staticFeatures, dynamicFeatures, tempload, temp = profileFeature(P_total.iloc[:, device_index], kmeans_hour, kmeans_day,
+    staticFeatures, dynamicFeatures, tempload, temp, scattertemp, scatterdataunique = profileFeature(P_total, device_index, kmeans_hour, kmeans_day,
                                                      labels_hour, labels_day, temp8760)
+    scatter = []
+    for i in range(len(scattertemp)):
+        if not (scatterdataunique.iloc[i] == 0):
+            scatter.append([scattertemp.iloc[i],scatterdataunique.iloc[i]])
 
     staticFeatures[0]
     staticFeatures[5] = str(staticFeatures[5])[1:-2]
@@ -176,15 +153,16 @@ def profileFeatureFunc(factory, line, device, measurePoint):
         'transfermatrixd':dynamicFeatures[2], #基于聚类结果的科尔科夫转移矩阵（天尺度）
         'entropyd':dynamicFeatures[3]
     }
-    resultDict = {'static': staticFeaturesObj, 'dynamic': dynamicFeaturesObj, "load": tempload.tolist(), "temp": temp.tolist()}
+    resultDict = {'static': staticFeaturesObj, 'dynamic': dynamicFeaturesObj, "load": tempload.tolist(), "temp": temp.tolist(), "scatter": scatter}
 
     try:
         resultJson = json.dumps(resultDict,ensure_ascii=False)
     except Exception as e:
         e.with_traceback()
 
-    sql = "insert into profilefeature (hashstr,json)values ('%s','%s')" % (parameterHash, resultJson)
+    sql = "insert into profilefeature (hashstr,json)values ('%s','%s')" % (hashname, resultJson)
     Tool.excuteSQL(sql)
+    return hashname
 
 def olapSlice(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, rotate = None, parameterHash=None):
     totalData, deviceList, metricList = Tool.olapData(timeRange)
@@ -208,6 +186,7 @@ def olapSlice(user = None,device  = None,timeRange  = None, metric  = None, grou
         resultJson = getRe(dataSlice)
         sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (parameterHash, resultJson)
         Tool.excuteSQL(sql)
+        return parameterHash
         # dataSlice.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), parameterHash + '.csv'))
     return dataSlice
 
@@ -222,7 +201,7 @@ def olapDrill(user=None, device=None, timeRange=None, metric=None,timeMode = 0,z
     sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (hashname, resultJson)
     Tool.excuteSQL(sql)
     # dataDrill.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), hashname+".csv"))
-    return
+    return hashname
 
 def olapRotate(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, hashname=None):
     data = olapSlice(user, device, timeRange, metric,groups, agg, 1)
@@ -231,7 +210,8 @@ def olapRotate(user = None,device  = None,timeRange  = None, metric  = None, gro
 
     sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (hashname, resultJson)
     Tool.excuteSQL(sql)
-    # data.T.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), hashname+".csv"))
+
+    return hashname
 
 def getRe(datas):
     content = []
@@ -273,24 +253,28 @@ def getRe(datas):
             plot1['y'][name] = tmp.values.tolist()
 
     header = []
-    for x in data.index.names:
-        tmp = {}
-        tmp['prop'] = x
-        tmp['label'] = x
-        header.append(tmp)
+    if not data.index.names[0] == None:
+        for x in data.index.names:
+            tmp = {}
+            tmp['prop'] = x
+            tmp['label'] = x
+            header.append(tmp)
     for x in data.columns.values.tolist():
         tmp = {}
         tmp['prop'] = x
         tmp['label'] = x
         header.append(tmp)
-
-    nl = len(data.index.names)
+    if data.index.names[0] == None:
+        nl = 0
+    else:
+        nl = len(data.index.names)
     for l in range(len(data.values.tolist())):
         for k in range(len(data.values.tolist()[l])):
             content[l][header[k + nl]['prop']] = data.values.tolist()[l][k]
 
     plot2 = {'x': [], 'y': {}}
     data = datas.T
+
     if len(data.index.names) > 1:
         l = len(data.index.levels)
         for y in range(len(data.index.codes[0])):
@@ -313,6 +297,7 @@ def getRe(datas):
         for i in range(data.shape[1]):
             tmp = data.iloc[:, i]
             name = ""
+
             for j in tmp.name:
                 if not isinstance(j, str):
                     name += str(j) + " "

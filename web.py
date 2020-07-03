@@ -1,14 +1,7 @@
 from flask import Flask, request
 from flask_restful import Resource, Api
-import hashlib
-import pymysql
-import threading
-import json
-import os
-from usedMain import oldMain, correlation, train_forecast
 from modelFunc import predictRealData, predictFunc, correlationFunc, clusterFunc, baseLine,profileFeatureFunc, olapSlice, olapDrill, olapRotate
-from olap_code import Slice
-from olap_code import Drill
+
 
 from Tool import Tool
 
@@ -20,34 +13,41 @@ allThread = []
 class PredictRealData(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
         device = request.json['device']
         measurePoint = request.json['measurePoint']
         year = int(request.json['year'])
         month = int(request.json['month'])
         day = int(request.json['day'])
-        allString = factory + line + device + measurePoint
-        print(allString)
-        assert isinstance(allString, str)
 
-        print(factory, line, device, measurePoint)
-        return predictRealData(factory, line, device, measurePoint, year, month, day)
+        print(factory, device, measurePoint)
+        return predictRealData(factory, device, measurePoint, year, month, day)
 
 
 class Predict(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        allString = factory + line + device + measurePoint
-        print(allString)
-        assert isinstance(allString, str)
+        start = request.json['start']
+        end = request.json['end']
+        hashname = request.json['hashname']
 
-        print(factory, line, device, measurePoint)
-        predictFunc(factory, line, device, measurePoint)
+        print(factory, device, measurePoint)
 
-        return {'status': "ok"}
+        try:
+            hashstr = predictFunc(factory, device, measurePoint, [start, end], hashname)
+            re = {
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+            re = {
+                "status": "error",
+
+            }
+        return re
 
     def get(self):
         print("this is get method!")
@@ -56,47 +56,103 @@ class Predict(Resource):
 class Correlation(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        print(factory, line, device, measurePoint)
-        correlationFunc(factory, line, device, measurePoint)
-        return {'status': "ok"}
+        start = request.json['start']
+        end = request.json['end']
+        hashname = request.json['hashname']
+        print(factory, device, measurePoint, start)
+        try:
+            hashstr = correlationFunc(factory, device, measurePoint, [start, end], hashname)
+            re = {
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+            re = {
+                "status": "error",
+            }
+        return re
 
 
 class Cluster(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        print(factory, line, device, measurePoint)
-        clusterFunc(factory, line, device, measurePoint)
-        return {'status': "ok"}
+        start = request.json['start']
+        end = request.json['end']
+        hashname = request.json['hashname']
+        print(factory, device, measurePoint)
+        try:
+            hashstr = clusterFunc(factory, device, measurePoint, [start, end], hashname)
+            re ={
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+
+            re = {
+                "status": "error",
+
+            }
+        return re
 
 
 class BaseLine(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        print(factory, line, device, measurePoint)
+        print(factory, device, measurePoint)
         year = int(request.json['year'])
         month = int(request.json['month'])
         day = int(request.json['day'])
-        baseLine(factory, line, device, measurePoint, year, month, day, 96)
+        hashname = request.json['hashname']
 
+        try:
+            hashstr = baseLine(factory, device, measurePoint, year, month, day, hashname, 96)
+            re ={
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+            re = {
+                "status": "error",
+
+            }
+        return re
 
 class ProfileFeature(Resource):
     def post(self):
         factory = request.json['factory']
-        line = request.json['line']
+
         device = request.json['device']
         measurePoint = request.json['measurePoint']
-        print(factory, line, device, measurePoint)
-        profileFeatureFunc(factory, line, device, measurePoint)
+        start = request.json['start']
+        end = request.json['end']
+        hashname = request.json['hashname']
+        print(factory, device, measurePoint)
+        # hashstr = profileFeatureFunc(factory, device, measurePoint, [start, end], hashname)
+        try:
+            hashstr = profileFeatureFunc(factory, device, measurePoint, [start, end], hashname)
+            re ={
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+            re = {
+                "status": "error",
 
+            }
+        return re
 class OlapSlice(Resource):
     def post(self):
         js:dict = request.json
@@ -122,7 +178,22 @@ class OlapSlice(Resource):
         print(metric)
         print(group)
         print(agg)
-        dataSlice = olapSlice(user, device, timeRange, metric,group, agg, parameterHash = parameterHash)
+
+        try:
+            hashstr = olapSlice(user, device, timeRange, metric,group, agg, parameterHash = parameterHash)
+            re = {
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+
+            re = {
+                "status": "error",
+
+            }
+        return re
+
 
 
 class OlapDrill(Resource):
@@ -148,8 +219,21 @@ class OlapDrill(Resource):
         print(zoneMode)
         print(timeRange)
         print(timeMode)
-        dataDrill1 = olapDrill(user, device, timeRange, metric, timeMode, zoneMode,hashname=hashname)
 
+        try:
+            hashstr = olapDrill(user, device, timeRange, metric, timeMode, zoneMode,hashname=hashname)
+            re = {
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+
+            re = {
+                "status": "error",
+
+            }
+        return re
 
 class OlapRotate(Resource):
     def post(self):
@@ -161,8 +245,21 @@ class OlapRotate(Resource):
         group = js.get('group')
         agg = js.get('agg')
         hashname = js.get('hashname')
-        rotate = olapRotate(user, device, timeRange, metric,group, agg, hashname=hashname)
 
+        try:
+            hashstr = olapRotate(user, device, timeRange, metric,group, agg, hashname=hashname)
+            re = {
+                "status": "success",
+                "msg": hashstr
+            }
+        except Exception as e:
+            print(e)
+
+            re = {
+                "status": "error",
+
+            }
+        return re
 
 class Test(Resource):
     def get(self):
@@ -181,4 +278,4 @@ api.add_resource(Test,'/test')
 
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0')
