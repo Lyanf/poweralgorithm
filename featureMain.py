@@ -237,6 +237,7 @@ if __name__=="__main__":
 
     #功能一：基于自适应时滞pearson相关系数找最相关设备
     print("—————————————————一、时空相关性分析(图1)—————————————————————")
+    print(P_total)
     corr_device = correlation(P_total, device_index, 3)
     print('corr_device:', corr_device)
 
