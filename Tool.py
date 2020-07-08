@@ -187,7 +187,7 @@ class Tool:
         # 指定了时间
         # indexedDataFrame = indexedDataFrame['2019-03-06':'2019-05-13']
         indexedDataFrame = indexedDataFrame.dropna()
-        indexedDataFrame = indexedDataFrame.drop_duplicates()
+        #indexedDataFrame = indexedDataFrame.drop_duplicates()
         # deviceList.insert(0, device)
         indexedDataFrame.columns = deviceList
         del_list = []
@@ -196,7 +196,6 @@ class Tool:
                 del_list.append(i)
         indexedDataFrame.drop(indexedDataFrame.columns[del_list], axis=1, inplace=True)
         # 返回一个0是因为，原本的P_total需要一个device_index标记当前选择的是哪个设备
-
         if device == "-1":
             return indexedDataFrame, -1
         reloc = -1
@@ -204,7 +203,8 @@ class Tool:
             reloc += 1
             if i == device:
                 break
-        if reloc <= 0 or reloc >= len(indexedDataFrame.columns.values.tolist()):
+
+        if reloc < 0 or reloc >= len(indexedDataFrame.columns.values.tolist()):
             raise Exception("所选设备在该测点数据异常")
         return indexedDataFrame, reloc
 
