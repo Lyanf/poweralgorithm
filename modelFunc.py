@@ -23,14 +23,16 @@ def predictRealData(factory, device, measurePoint, year, month, day):
 
 
 # 完全自己做，并且把数据放到数据库里面
-def predictFunc(factory, device, measurePoint, timeRange, hashname):
+def predictFunc(factory, device, measurePoint, timeRange, hashname, allData):
 
     resultFileName = hashname[0:15]
 
     # insertSQL = '''insert into sjtudb.algorithmresult values('%s','%s',null)''' % (parameterHash, resultFileName)
     # Tool.excuteSQL(insertSQL)
-
-    P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
+    if allData == "true":
+        P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint)
+    else:
+        P_total, device_index = Tool.getP_totalBySQL(factory, device, measurePoint, timeRange)
     corr_device = correlation(P_total, device_index, 3, 96)
     a, b = train_forecast(P_total, corr_device, device_index,96)
     lastResult = {'y_true': a, 'y_pred': b}

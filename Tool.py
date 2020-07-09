@@ -174,7 +174,7 @@ class Tool:
         if factory != "-1":
             sql += " and customerid = " + factory
         if timeRange != None:
-            sql = sql + " and regdate > DATE('" + timeRange[0] + "') AND regdate <= DATE('" + timeRange[1] + "') "
+            sql = sql + " and regdate >= DATE('" + timeRange[0] + "') AND regdate <= DATE('" + timeRange[1] + "') "
         sql += " group by regdate)"
         originDataFrame = pd.read_sql(sql, Tool.getSQLEngine(), "timestamps")
         indexedDataFrame = originDataFrame

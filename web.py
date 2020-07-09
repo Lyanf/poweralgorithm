@@ -32,11 +32,11 @@ class Predict(Resource):
         start = request.json['start']
         end = request.json['end']
         hashname = request.json['hashname']
-
+        allData = request.json['allData']
         print(factory, device, measurePoint)
 
         try:
-            hashstr = predictFunc(factory, device, measurePoint, [start, end], hashname)
+            hashstr = predictFunc(factory, device, measurePoint, [start, end], hashname, allData)
             re = {
                 "status": "success",
                 "msg": hashstr
