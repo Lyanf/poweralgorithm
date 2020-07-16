@@ -206,7 +206,9 @@ def olapDrill(user=None, device=None, timeRange=None, metric=None,timeMode = 0,z
 
 def olapRotate(user = None,device  = None,timeRange  = None, metric  = None, groups:list  = None, agg = None, hashname=None):
     data = olapSlice(user, device, timeRange, metric,groups, agg, 1)
+    print("Rotate")
     data = data.T
+    print(data)
     resultJson = getRe(data)
 
     sql = "insert into olapresult (hashname,json)values ('%s','%s')" % (hashname, resultJson)
@@ -256,11 +258,19 @@ def getRe(datas):
     header = []
     if not data.index.names[0] == None:
         for x in data.index.names:
+            if isinstance(x, tuple):
+                x = ' '.join(x)
+            elif isinstance(x, list):
+                x = ' '.join(x)
             tmp = {}
             tmp['prop'] = x
             tmp['label'] = x
             header.append(tmp)
     for x in data.columns.values.tolist():
+        if isinstance(x, tuple):
+            x = ' '.join(x)
+        elif isinstance(x, list):
+            x = ' '.join(x)
         tmp = {}
         tmp['prop'] = x
         tmp['label'] = x
@@ -271,7 +281,11 @@ def getRe(datas):
         nl = len(data.index.names)
     for l in range(len(data.values.tolist())):
         for k in range(len(data.values.tolist()[l])):
-            content[l][header[k + nl]['prop']] = data.values.tolist()[l][k]
+            if isinstance(header[k + nl]['prop'], tuple):
+                key = ' '.join(header[k + nl]['prop'])
+                content[l][key] = data.values.tolist()[l][k]
+            else:
+                content[l][header[k + nl]['prop']] = data.values.tolist()[l][k]
 
     plot2 = {'x': [], 'y': {}}
     data = datas.T
@@ -309,6 +323,15 @@ def getRe(datas):
 
 
     resultDict = {'plot1': plot1, 'plot2': plot2, "header": header, "content": content}
+    # try:
+    #
+    #     for key in resultDict['content'][0]:
+    #         if isinstance(key,tuple):
+    #             resultDict[''.join(key)] = resultDict.pop(key)
+    # except Exception as e:
+    #     print(e)
+    #     e.with_traceback()
+
     try:
         resultJson = json.dumps(resultDict, ensure_ascii=False)
     except Exception as e:
